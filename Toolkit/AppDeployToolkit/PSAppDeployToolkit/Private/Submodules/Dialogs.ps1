@@ -117,7 +117,7 @@ function Show-WelcomePrompt
         [DateTime]$countdownTime = $startTime
 
         ## Check if the countdown was specified
-        If ($CloseAppsCountdown -and ($CloseAppsCountdown -gt $configInstallationUITimeout)) {
+        If ($CloseAppsCountdown -and ($CloseAppsCountdown -gt $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout)) {
             Throw 'The close applications countdown time cannot be longer than the timeout specified in the XML configuration for installation UI dialogs to timeout.'
         }
 
@@ -261,7 +261,7 @@ function Show-WelcomePrompt
             }
         }
         Else {
-            $script:welcomeTimer.Interval = ($configInstallationUITimeout * 1000)
+            $script:welcomeTimer.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout * 1000)
             [ScriptBlock]$welcomeTimer_Tick = { $buttonAbort.PerformClick() }
         }
 
@@ -270,7 +270,7 @@ function Show-WelcomePrompt
         ## Persistence Timer
         If ($persistWindow) {
             $welcomeTimerPersist = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $welcomeTimerPersist.Interval = ($configInstallationPersistInterval * 1000)
+            $welcomeTimerPersist.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationPrompt_PersistInterval * 1000)
             [ScriptBlock]$welcomeTimerPersist_Tick = {
                 $formWelcome.WindowState = 'Normal'
                 $formWelcome.TopMost = $TopMost
@@ -282,9 +282,9 @@ function Show-WelcomePrompt
         }
 
         ## Process Re-Enumeration Timer
-        If ($configInstallationWelcomePromptDynamicRunningProcessEvaluation) {
+        If ($Script:StateMgmt.Config.UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluation) {
             $timerRunningProcesses = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $timerRunningProcesses.Interval = ($configInstallationWelcomePromptDynamicRunningProcessEvaluationInterval * 1000)
+            $timerRunningProcesses.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluationInterval * 1000)
             [ScriptBlock]$timerRunningProcesses_Tick = {
                 Try {
                     $dynamicRunningProcesses = $null
@@ -355,7 +355,7 @@ function Show-WelcomePrompt
         $labelWelcomeMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 10, 0, 0)
         $labelWelcomeMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelWelcomeMessage.TabStop = $false
-        $labelWelcomeMessage.Text = $configDeferPromptWelcomeMessage
+        $labelWelcomeMessage.Text = $Script:UI.DeferPrompt_WelcomeMessage
         $labelWelcomeMessage.TextAlign = 'MiddleCenter'
         $labelWelcomeMessage.Anchor = 'Top'
         $labelWelcomeMessage.AutoSize = $true
@@ -385,7 +385,7 @@ function Show-WelcomePrompt
         $labelCustomMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 0, 0, 5)
         $labelCustomMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelCustomMessage.TabStop = $false
-        $labelCustomMessage.Text = $configClosePromptMessage
+        $labelCustomMessage.Text = $Script:UI.ClosePrompt_Message
         $labelCustomMessage.TextAlign = 'MiddleCenter'
         $labelCustomMessage.Anchor = 'Top'
         $labelCustomMessage.AutoSize = $true
@@ -400,7 +400,7 @@ function Show-WelcomePrompt
         $labelCloseAppsMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 0, 0, 5)
         $labelCloseAppsMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelCloseAppsMessage.TabStop = $false
-        $labelCloseAppsMessage.Text = $configClosePromptMessage
+        $labelCloseAppsMessage.Text = $Script:UI.ClosePrompt_Message
         $labelCloseAppsMessage.TextAlign = 'MiddleCenter'
         $labelCloseAppsMessage.Anchor = 'Top'
         $labelCloseAppsMessage.AutoSize = $true
@@ -428,15 +428,15 @@ function Show-WelcomePrompt
         $labelDefer.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 0, 0, 5)
         $labelDefer.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelDefer.TabStop = $false
-        $deferralText = "$configDeferPromptExpiryMessage`r`n"
+        $deferralText = "$($Script:UI.DeferPrompt_ExpiryMessage)`n"
 
         If ($deferTimes -ge 0) {
-            $deferralText = "$deferralText `r`n$configDeferPromptRemainingDeferrals $([Int32]$deferTimes + 1)"
+            $deferralText = "$deferralText`n$($Script:UI.DeferPrompt_RemainingDeferrals) $([Int32]$deferTimes + 1)"
         }
         If ($deferDeadline) {
-            $deferralText = "$deferralText `r`n$configDeferPromptDeadline $deferDeadline"
+            $deferralText = "$deferralText`n$($Script:UI.DeferPrompt_Deadline) $deferDeadline"
         }
-        $deferralText = "$deferralText `r`n`r`n$configDeferPromptWarningMessage"
+        $deferralText = "$deferralText`n`n$($Script:UI.DeferPrompt_WarningMessage)"
         $labelDefer.Text = $deferralText
         $labelDefer.TextAlign = 'MiddleCenter'
         $labelDefer.AutoSize = $true
@@ -454,18 +454,18 @@ function Show-WelcomePrompt
         If (($forceCountdown -eq $true) -or (-not $runningProcessDescriptions)) {
             Switch ($deploymentType) {
                 'Uninstall' {
-                    $labelCountdownMessage.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeUninstall); Break
+                    $labelCountdownMessage.Text = ($Script:UI.WelcomePrompt_CountdownMessage -f $Script:UI.DeploymentType_UnInstall); Break
                 }
                 'Repair' {
-                    $labelCountdownMessage.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeRepair); Break
+                    $labelCountdownMessage.Text = ($Script:UI.WelcomePrompt_CountdownMessage -f $Script:UI.DeploymentType_Repair); Break
                 }
                 Default {
-                    $labelCountdownMessage.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeInstall); Break
+                    $labelCountdownMessage.Text = ($Script:UI.WelcomePrompt_CountdownMessage -f $Script:UI.DeploymentType_Install); Break
                 }
             }
         }
         Else {
-            $labelCountdownMessage.Text = $configClosePromptCountdownMessage
+            $labelCountdownMessage.Text = $Script:UI.ClosePrompt_CountdownMessage
         }
         $labelCountdownMessage.TextAlign = 'MiddleCenter'
         $labelCountdownMessage.Anchor = 'Top'
@@ -501,8 +501,8 @@ function Show-WelcomePrompt
         $flowLayoutPanel.Controls.Add($labelWelcomeMessage)
         $flowLayoutPanel.Controls.Add($labelAppName)
 
-        If ($CustomText -and $configWelcomePromptCustomMessage) {
-            $labelCustomMessage.Text = $configWelcomePromptCustomMessage
+        If ($CustomText -and $Script:UI.WelcomePrompt_CustomMessage) {
+            $labelCustomMessage.Text = $Script:UI.WelcomePrompt_CustomMessage
             $flowLayoutPanel.Controls.Add($labelCustomMessage)
         }
         If ($showCloseApps) {
@@ -526,7 +526,7 @@ function Show-WelcomePrompt
         $buttonCloseApps.MinimumSize = $buttonSize
         $buttonCloseApps.MaximumSize = $buttonSize
         $buttonCloseApps.TabIndex = 1
-        $buttonCloseApps.Text = $configClosePromptButtonClose
+        $buttonCloseApps.Text = $Script:UI.ClosePrompt_ButtonClose
         $buttonCloseApps.DialogResult = 'Yes'
         $buttonCloseApps.AutoSize = $true
         $buttonCloseApps.Margin = $paddingNone
@@ -547,7 +547,7 @@ function Show-WelcomePrompt
         $buttonDefer.MinimumSize = $buttonSize
         $buttonDefer.MaximumSize = $buttonSize
         $buttonDefer.TabIndex = 0
-        $buttonDefer.Text = $configClosePromptButtonDefer
+        $buttonDefer.Text = $Script:UI.ClosePrompt_ButtonDefer
         $buttonDefer.DialogResult = 'No'
         $buttonDefer.AutoSize = $true
         $buttonDefer.Margin = $paddingNone
@@ -563,7 +563,7 @@ function Show-WelcomePrompt
         $buttonContinue.MinimumSize = $buttonSize
         $buttonContinue.MaximumSize = $buttonSize
         $buttonContinue.TabIndex = 2
-        $buttonContinue.Text = $configClosePromptButtonContinue
+        $buttonContinue.Text = $Script:UI.ClosePrompt_ButtonContinue
         $buttonContinue.DialogResult = 'OK'
         $buttonContinue.AutoSize = $true
         $buttonContinue.Margin = $paddingNone
@@ -575,7 +575,7 @@ function Show-WelcomePrompt
             $toolTip.IsBalloon = $false
             $toolTip.InitialDelay = 100
             $toolTip.ReshowDelay = 100
-            $toolTip.SetToolTip($buttonContinue, $configClosePromptButtonContinueTooltip)
+            $toolTip.SetToolTip($buttonContinue, $Script:UI.ClosePrompt_ButtonContinueTooltip)
         }
 
         ## Button Abort (Hidden)
@@ -666,7 +666,7 @@ function Show-WelcomePrompt
             }
         }
 
-        If ($configInstallationWelcomePromptDynamicRunningProcessEvaluation) {
+        If ($Script:StateMgmt.Config.UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluation) {
             $timerRunningProcesses.Stop()
         }
 

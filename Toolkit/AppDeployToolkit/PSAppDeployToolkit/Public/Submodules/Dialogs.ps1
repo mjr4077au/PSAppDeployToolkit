@@ -101,7 +101,7 @@ function Show-InstallationPrompt
         [Boolean]$MinimizeWindows = $false,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [Int32]$Timeout = $configInstallationUITimeout,
+        [Int32]$Timeout = $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
         [Boolean]$ExitOnTimeout = $true,
@@ -126,7 +126,7 @@ function Show-InstallationPrompt
         [Hashtable]$installPromptParameters = $PSBoundParameters
 
         ## Check if the countdown was specified
-        If ($timeout -gt $configInstallationUITimeout) {
+        If ($timeout -gt $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout) {
             [String]$CountdownTimeoutErr = 'The installation UI dialog timeout cannot be longer than the timeout specified in the XML configuration file.'
             Write-Log -Message $CountdownTimeoutErr -Severity 3 -Source ${CmdletName}
             Throw $CountdownTimeoutErr
@@ -418,7 +418,7 @@ function Show-InstallationPrompt
         ## Persistence Timer
         If ($persistPrompt) {
             $installPromptTimerPersist = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $installPromptTimerPersist.Interval = ($configInstallationPersistInterval * 1000)
+            $installPromptTimerPersist.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationPrompt_PersistInterval * 1000)
             [ScriptBlock]$installPromptTimerPersist_Tick = {
                 $formInstallationPrompt.WindowState = 'Normal'
                 $formInstallationPrompt.TopMost = $TopMost
@@ -468,7 +468,7 @@ function Show-InstallationPrompt
                 # Restore minimized windows
                 $null = $shellApp.UndoMinimizeAll()
                 If ($ExitOnTimeout) {
-                    Exit-Script -ExitCode $configInstallationUIExitCode
+                    Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode
                 }
                 Else {
                     Write-Log -Message 'UI timed out but `$ExitOnTimeout set to `$false. Continue...' -Source ${CmdletName}
@@ -557,7 +557,7 @@ function Show-DialogBox
         [String]$Icon = 'None',
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$Timeout = $configInstallationUITimeout,
+        [String]$Timeout = $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout,
         [Parameter(Mandatory = $false)]
         [Boolean]$TopMost = $true
     )
@@ -898,9 +898,9 @@ function Show-InstallationWelcome
             If ($freeDiskSpace -lt $RequiredDiskSpace) {
                 Write-Log -Message "Failed to meet minimum disk space requirement. Space Required [$RequiredDiskSpace MB], Space Available [$freeDiskSpace MB]." -Severity 3 -Source ${CmdletName}
                 If (-not $Silent) {
-                    Show-InstallationPrompt -Message ($configDiskSpaceMessage -f $installTitle, $RequiredDiskSpace, ($freeDiskSpace)) -ButtonRightText 'OK' -Icon 'Error'
+                    Show-InstallationPrompt -Message ($Script:UI.DiskSpace_Message -f $installTitle, $RequiredDiskSpace, ($freeDiskSpace)) -ButtonRightText 'OK' -Icon 'Error'
                 }
-                Exit-Script -ExitCode $configInstallationUIExitCode
+                Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode
             }
             Else {
                 Write-Log -Message 'Successfully passed minimum disk space requirement check.' -Source ${CmdletName}
@@ -1064,12 +1064,12 @@ function Show-InstallationWelcome
                         [PSObject[]]$AllOpenWindowsForRunningProcess = Get-WindowTitle -GetAllWindowTitles -DisableFunctionLogging | Where-Object { $_.ParentProcess -eq $runningProcess.ProcessName }
                         #  If the PromptToSave parameter was specified and the process has a window open, then prompt the user to save work if there is work to be saved when closing window
                         If (($PromptToSave) -and (-not ($SessionZero -and (-not $IsProcessUserInteractive))) -and ($AllOpenWindowsForRunningProcess) -and ($runningProcess.MainWindowHandle -ne [IntPtr]::Zero)) {
-                            [Timespan]$PromptToSaveTimeout = New-TimeSpan -Seconds $configInstallationPromptToSave
+                            [Timespan]$PromptToSaveTimeout = New-TimeSpan -Seconds $Script:StateMgmt.Config.UI_Options.InstallationPromptToSave_Timeout
                             [Diagnostics.StopWatch]$PromptToSaveStopWatch = [Diagnostics.StopWatch]::StartNew()
                             $PromptToSaveStopWatch.Reset()
                             ForEach ($OpenWindow in $AllOpenWindowsForRunningProcess) {
                                 Try {
-                                    Write-Log -Message "Stopping process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)] and prompt to save if there is work to be saved (timeout in [$configInstallationPromptToSave] seconds)..." -Source ${CmdletName}
+                                    Write-Log -Message "Stopping process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)] and prompt to save if there is work to be saved (timeout in [$Script:StateMgmt.Config.UI_Options.InstallationPromptToSave_Timeout] seconds)..." -Source ${CmdletName}
                                     [Boolean]$IsBringWindowToFrontSuccess = [PSADT.UiAutomation]::BringWindowToFront($OpenWindow.WindowHandle)
                                     [Boolean]$IsCloseWindowCallSuccess = $runningProcess.CloseMainWindow()
                                     If (-not $IsCloseWindowCallSuccess) {
@@ -1086,7 +1086,7 @@ function Show-InstallationWelcome
                                         } While (($IsWindowOpen) -and ($PromptToSaveStopWatch.Elapsed -lt $PromptToSaveTimeout))
                                         $PromptToSaveStopWatch.Reset()
                                         If ($IsWindowOpen) {
-                                            Write-Log -Message "Exceeded the [$configInstallationPromptToSave] seconds timeout value for the user to save work associated with process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)]." -Severity 2 -Source ${CmdletName}
+                                            Write-Log -Message "Exceeded the [$Script:StateMgmt.Config.UI_Options.InstallationPromptToSave_Timeout] seconds timeout value for the user to save work associated with process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)]." -Severity 2 -Source ${CmdletName}
                                         }
                                         Else {
                                             Write-Log -Message "Window [$($OpenWindow.WindowTitle)] for process [$($runningProcess.ProcessName)] was successfully closed." -Source ${CmdletName}
@@ -1135,7 +1135,7 @@ function Show-InstallationWelcome
                     #  Restore minimized windows
                     $null = $shellApp.UndoMinimizeAll()
 
-                    Exit-Script -ExitCode $configInstallationUIExitCode
+                    Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode
                 }
                 #  Stop the script (user chose to defer)
                 ElseIf ($promptResult -eq 'Defer') {
@@ -1147,7 +1147,7 @@ function Show-InstallationWelcome
                     #  Restore minimized windows
                     $null = $shellApp.UndoMinimizeAll()
 
-                    Exit-Script -ExitCode $configInstallationDeferExitCode
+                    Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationDefer_ExitCode
                 }
             }
         }
@@ -1321,7 +1321,7 @@ function Show-InstallationRestartPrompt
         [Hashtable]$installRestartPromptParameters = $PSBoundParameters
 
         ## Check if we are already displaying a restart prompt
-        If (Get-Process | Where-Object { $_.MainWindowTitle -match $configRestartPromptTitle }) {
+        If (Get-Process | Where-Object { $_.MainWindowTitle -match $Script:UI.RestartPrompt_Title }) {
             Write-Log -Message "${CmdletName} was invoked, but an existing restart prompt was detected. Cancelling restart prompt." -Severity 2 -Source ${CmdletName}
             Return
         }
@@ -1399,7 +1399,7 @@ function Show-InstallationRestartPrompt
         ## Persistence Timer
         If ($NoCountdown) {
             $restartTimerPersist = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $restartTimerPersist.Interval = ($configInstallationRestartPersistInterval * 1000)
+            $restartTimerPersist.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationRestartPrompt_PersistInterval * 1000)
             [ScriptBlock]$restartTimerPersist_Tick = {
                 #  Show the Restart Popup
                 $formRestart.WindowState = 'Normal'
@@ -1501,9 +1501,9 @@ function Show-InstallationRestartPrompt
         $labelMessage.MaximumSize = $defaultControlSize
         $labelMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 10, 0, 5)
         $labelMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
-        $labelMessage.Text = "$configRestartPromptMessage $configRestartPromptMessageTime `r`n`r`n$configRestartPromptMessageRestart"
+        $labelMessage.Text = "$($Script:UI.RestartPrompt_Message) $($Script:UI.RestartPrompt_MessageTime)`n`n$($Script:UI.RestartPrompt_MessageRestart)"
         If ($NoCountdown) {
-            $labelMessage.Text = $configRestartPromptMessage
+            $labelMessage.Text = $Script:UI.RestartPrompt_Message
         }
         $labelMessage.TextAlign = 'MiddleCenter'
         $labelMessage.Anchor = 'Top'
@@ -1520,7 +1520,7 @@ function Show-InstallationRestartPrompt
         $labelTimeRemaining.Margin = $paddingNone
         $labelTimeRemaining.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelTimeRemaining.TabStop = $false
-        $labelTimeRemaining.Text = $configRestartPromptTimeRemaining
+        $labelTimeRemaining.Text = $Script:UI.RestartPrompt_TimeRemaining
         $labelTimeRemaining.TextAlign = 'MiddleCenter'
         $labelTimeRemaining.Anchor = 'Top'
         $labelTimeRemaining.AutoSize = $true
@@ -1567,7 +1567,7 @@ function Show-InstallationRestartPrompt
         $buttonRestartLater.MinimumSize = $buttonSize
         $buttonRestartLater.MaximumSize = $buttonSize
         $buttonRestartLater.TabIndex = 0
-        $buttonRestartLater.Text = $configRestartPromptButtonRestartLater
+        $buttonRestartLater.Text = $Script:UI.RestartPrompt_ButtonRestartLater
         $buttonRestartLater.AutoSize = $true
         $buttonRestartLater.Margin = $paddingNone
         $buttonRestartLater.Padding = $paddingNone
@@ -1583,7 +1583,7 @@ function Show-InstallationRestartPrompt
         $buttonRestartNow.MinimumSize = $buttonSize
         $buttonRestartNow.MaximumSize = $buttonSize
         $buttonRestartNow.TabIndex = 1
-        $buttonRestartNow.Text = $configRestartPromptButtonRestartNow
+        $buttonRestartNow.Text = $Script:UI.RestartPrompt_ButtonRestartNow
         $buttonRestartNow.Margin = $paddingNone
         $buttonRestartNow.Padding = $paddingNone
         $buttonRestartNow.UseVisualStyleBackColor = $true
@@ -1731,8 +1731,8 @@ function Show-BalloonTip
     }
     Process {
         ## Skip balloon if in silent mode, disabled in the config or presentation is detected
-        If (($deployModeSilent) -or (-not $configShowBalloonNotifications)) {
-            Write-Log -Message "Bypassing Show-BalloonTip [Mode:$deployMode, Config Show Balloon Notifications:$configShowBalloonNotifications]. BalloonTipText:$BalloonTipText" -Source ${CmdletName}
+        If (($deployModeSilent) -or (-not $Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications)) {
+            Write-Log -Message "Bypassing Show-BalloonTip [Mode:$deployMode, Config Show Balloon Notifications:$Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications]. BalloonTipText:$BalloonTipText" -Source ${CmdletName}
             Return
         }
         If (Test-PowerPoint) {
@@ -1748,7 +1748,7 @@ function Show-BalloonTip
             }
         }
 
-        If (($envOSVersionMajor -lt 10) -or ($configToastDisable -eq $true)) {
+        If (($envOSVersionMajor -lt 10) -or ($Script:StateMgmt.Config.Toast_Options.Toast_Disable -eq $true)) {
             ## NoWait - Create the balloontip icon asynchronously
             If ($NoWait) {
                 Write-Log -Message "Displaying balloon tip notification asynchronously with message [$BalloonTipText]." -Source ${CmdletName}
@@ -1824,7 +1824,7 @@ function Show-BalloonTip
         # Otherwise use toast notification
         Else {
             $toastAppID = $appDeployToolkitName
-            $toastAppDisplayName = $configToastAppName
+            $toastAppDisplayName = $Script:StateMgmt.Config.Toast_Options.Toast_AppName
 
             [scriptblock]$toastScriptBlock  = {
                 Param(
@@ -1987,7 +1987,7 @@ function Show-InstallationProgress
     Param (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$StatusMessage = $configProgressMessageInstall,
+        [String]$StatusMessage = $Script:UI.Progress_MessageInstall,
         [Parameter(Mandatory = $false)]
         [ValidateSet('Default', 'TopLeft', 'Top', 'TopRight', 'TopCenter', 'BottomLeft', 'Bottom', 'BottomRight')]
         [String]$WindowLocation = 'Default',
@@ -2014,12 +2014,12 @@ function Show-InstallationProgress
         }
 
         ## If the default progress message hasn't been overridden and the deployment type is uninstall, use the default uninstallation message
-        If ($StatusMessage -eq $configProgressMessageInstall) {
+        If ($StatusMessage -eq $Script:UI.Progress_MessageInstall) {
             If ($deploymentType -eq 'Uninstall') {
-                $StatusMessage = $configProgressMessageUninstall
+                $StatusMessage = $Script:UI.Progress_MessageUninstall
             }
             ElseIf ($deploymentType -eq 'Repair') {
-                $StatusMessage = $configProgressMessageRepair
+                $StatusMessage = $Script:UI.Progress_MessageRepair
             }
         }
 
@@ -2031,7 +2031,7 @@ function Show-InstallationProgress
         ## Check if the progress thread is running before invoking methods on it
         If (!$script:instProgressRunning) {
             #  Notify user that the software installation has started
-            $balloonText = "$deploymentTypeName $configBalloonTextStart"
+            $balloonText = "$deploymentTypeName $($Script:UI.BalloonText_Start)"
             Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText
             #  Create a synchronized hashtable to share objects between runspaces
             $script:ProgressSyncHash = [Hashtable]::Synchronized(@{ })

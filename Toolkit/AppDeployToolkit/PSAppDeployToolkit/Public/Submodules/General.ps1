@@ -102,39 +102,39 @@ function Write-Log
         [String]$ScriptSection = $script:installPhase,
         [Parameter(Mandatory = $false, Position = 4)]
         [ValidateSet('CMTrace', 'Legacy')]
-        [String]$LogType = $configToolkitLogStyle,
+        [String]$LogType = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogStyle,
         [Parameter(Mandatory = $false, Position = 5)]
         [ValidateNotNullorEmpty()]
-        [String]$LogFileDirectory = $(If ($configToolkitCompressLogs) {
+        [String]$LogFileDirectory = $(If ($Script:StateMgmt.Config.Toolkit_Options.Toolkit_CompressLogs) {
                 $logTempFolder
             }
             Else {
-                $configToolkitLogDir
+                $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath
             }),
         [Parameter(Mandatory = $false, Position = 6)]
         [ValidateNotNullorEmpty()]
         [String]$LogFileName = $logName,
         [Parameter(Mandatory=$false,Position=7)]
         [ValidateNotNullorEmpty()]
-        [Boolean]$AppendToLogFile = $configToolkitLogAppend,
+        [Boolean]$AppendToLogFile = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogAppend,
         [Parameter(Mandatory=$false,Position=8)]
         [ValidateNotNullorEmpty()]
-        [Int]$MaxLogHistory = $configToolkitLogMaxHistory,
+        [Int]$MaxLogHistory = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxHistory,
         [Parameter(Mandatory = $false, Position = 9)]
         [ValidateNotNullorEmpty()]
-        [Decimal]$MaxLogFileSizeMB = $configToolkitLogMaxSize,
+        [Decimal]$MaxLogFileSizeMB = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxSize,
 	    [Parameter(Mandatory=$false,Position=10)]
         [ValidateNotNullorEmpty()]
         [Boolean]$ContinueOnError = $true,
         [Parameter(Mandatory = $false, Position = 11)]
         [ValidateNotNullorEmpty()]
-        [Boolean]$WriteHost = $configToolkitLogWriteToHost,
+        [Boolean]$WriteHost = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogWriteToHost,
         [Parameter(Mandatory=$false,Position=12)]
         [Switch]$PassThru = $false,
 	    [Parameter(Mandatory=$false,Position=13)]
         [Switch]$DebugMessage = $false,
 	    [Parameter(Mandatory=$false,Position=14)]
-        [Boolean]$LogDebugMessage = $configToolkitLogDebugMessage
+        [Boolean]$LogDebugMessage = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogDebugMessage
     )
 
     Begin {
@@ -458,10 +458,10 @@ function Exit-Script
 
     ## Determine action based on exit code
     Switch ($exitCode) {
-        $configInstallationUIExitCode {
+        $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode {
             $installSuccess = $false
         }
-        $configInstallationDeferExitCode {
+        $Script:StateMgmt.Config.UI_Options.InstallationDefer_ExitCode {
             $installSuccess = $false
         }
         {$ValidExitCodes -contains $_} {
@@ -474,7 +474,7 @@ function Exit-Script
 
     ## Determine if balloon notification should be shown
     If ($deployModeSilent) {
-        [Boolean]$configShowBalloonNotifications = $false
+        [Boolean]$Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications = $false
     }
 
     If ($installSuccess) {
@@ -483,11 +483,11 @@ function Exit-Script
             Remove-RegistryKey -Key $regKeyDeferHistory -Recurse
         }
 
-        [String]$balloonText = "$deploymentTypeName $configBalloonTextComplete"
+        [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_Complete)"
         ## Handle reboot prompts on successful script completion
         If (($AllowRebootPassThru) -and ((($msiRebootDetected) -or ($exitCode -eq 3010)) -or ($exitCode -eq 1641))) {
             Write-Log -Message 'A restart has been flagged as required.' -Source ${CmdletName}
-            [String]$balloonText = "$deploymentTypeName $configBalloonTextRestartRequired"
+            [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_RestartRequired)"
             If (($msiRebootDetected) -and ($exitCode -ne 1641)) {
                 [Int32]$exitCode = 3010
             }
@@ -497,21 +497,21 @@ function Exit-Script
         }
 
         Write-Log -Message "$installName $($deploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 0
-        If ($configShowBalloonNotifications) {
+        If ($Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications) {
             Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText -NoWait
         }
     }
-    ElseIf (($exitCode -eq $configInstallationUIExitCode) -or ($exitCode -eq $configInstallationDeferExitCode)) {
+    ElseIf (($exitCode -eq $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode) -or ($exitCode -eq $Script:StateMgmt.Config.UI_Options.InstallationDefer_ExitCode)) {
         Write-Log -Message "$installName $($deploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 2
-        [String]$balloonText = "$deploymentTypeName $configBalloonTextFastRetry"
-        If ($configShowBalloonNotifications) {
+        [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_FastRetry)"
+        If ($Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications) {
             Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText -NoWait
         }
     }
     Else {
         Write-Log -Message "$installName $($deploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 3
-        [String]$balloonText = "$deploymentTypeName $configBalloonTextError"
-        If ($configShowBalloonNotifications) {
+        [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_Error)"
+        If ($Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications) {
             Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText -NoWait
         }
     }
@@ -520,21 +520,21 @@ function Exit-Script
     Write-Log -Message $LogDash -Source ${CmdletName}
 
     ## Archive the log files to zip format and then delete the temporary logs folder
-    If ($configToolkitCompressLogs) {
+    If ($Script:StateMgmt.Config.Toolkit_Options.Toolkit_CompressLogs) {
         ## Disable logging to file so that we can archive the log files
         . $DisableScriptLogging
 
         Try {
             # Get all archive files sorted by last write time
-            $ArchiveFiles = Get-ChildItem -LiteralPath $configToolkitLogDir -Filter ($installName + '_' + $deploymentType + '_*.zip') | Sort-Object LastWriteTime
+            $ArchiveFiles = Get-ChildItem -LiteralPath $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath -Filter ($installName + '_' + $deploymentType + '_*.zip') | Sort-Object LastWriteTime
 
             # Keep only the max number of archive files
-            if ($ArchiveFiles.Count -gt $configToolkitLogMaxHistory) {
-                $ArchiveFiles | Select-Object -First ($ArchiveFiles.Count - $configToolkitLogMaxHistory) | Remove-Item -ErrorAction 'Stop'
+            if ($ArchiveFiles.Count -gt $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxHistory) {
+                $ArchiveFiles | Select-Object -First ($ArchiveFiles.Count - $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxHistory) | Remove-Item -ErrorAction 'Stop'
             }
 
             [String]$DestinationArchiveFileName = $installName + '_' + $deploymentType + '_' + ((Get-Date -Format 'yyyy-MM-dd-HH-mm-ss').ToString()) + '.zip'
-            New-ZipFile -DestinationArchiveDirectoryPath $configToolkitLogDir -DestinationArchiveFileName $DestinationArchiveFileName -SourceDirectory $logTempFolder -RemoveSourceAfterArchiving
+            New-ZipFile -DestinationArchiveDirectoryPath $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath -DestinationArchiveFileName $DestinationArchiveFileName -SourceDirectory $logTempFolder -RemoveSourceAfterArchiving
         }
         Catch {
             Write-Host -Object "[$LogDate $LogTime] [${CmdletName}] $ScriptSection :: Failed to manage archive file [$DestinationArchiveFileName]. `r`n$(Resolve-Error)" -ForegroundColor 'Red'

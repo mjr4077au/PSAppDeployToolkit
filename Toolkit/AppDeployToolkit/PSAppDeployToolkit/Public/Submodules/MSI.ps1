@@ -229,27 +229,27 @@ function Execute-MSI
             }
         }
 
-        If ($configToolkitCompressLogs) {
+        If ($Script:StateMgmt.Config.Toolkit_Options.Toolkit_CompressLogs) {
             ## Build the log file path
             [String]$logPath = Join-Path -Path $logTempFolder -ChildPath $LogName
         }
         Else {
             ## Create the Log directory if it doesn't already exist
-            If (-not (Test-Path -LiteralPath $configMSILogDir -PathType 'Container' -ErrorAction 'SilentlyContinue')) {
-                $null = New-Item -Path $configMSILogDir -ItemType 'Directory' -ErrorAction 'SilentlyContinue'
+            If (-not (Test-Path -LiteralPath $Script:StateMgmt.Config.MSI_Options.MSI_LogPath -PathType 'Container' -ErrorAction 'SilentlyContinue')) {
+                $null = New-Item -Path $Script:StateMgmt.Config.MSI_Options.MSI_LogPath -ItemType 'Directory' -ErrorAction 'SilentlyContinue'
             }
             ## Build the log file path
-            [String]$logPath = Join-Path -Path $configMSILogDir -ChildPath $LogName
+            [String]$logPath = Join-Path -Path $Script:StateMgmt.Config.MSI_Options.MSI_LogPath -ChildPath $LogName
         }
 
         ## Set the installation Parameters
         If ($deployModeSilent) {
-            $msiInstallDefaultParams = $configMSISilentParams
-            $msiUninstallDefaultParams = $configMSISilentParams
+            $msiInstallDefaultParams = $Script:StateMgmt.Config.MSI_Options.MSI_SilentParams
+            $msiUninstallDefaultParams = $Script:StateMgmt.Config.MSI_Options.MSI_SilentParams
         }
         Else {
-            $msiInstallDefaultParams = $configMSIInstallParams
-            $msiUninstallDefaultParams = $configMSIUninstallParams
+            $msiInstallDefaultParams = $Script:StateMgmt.Config.MSI_Options.MSI_InstallParams
+            $msiUninstallDefaultParams = $Script:StateMgmt.Config.MSI_Options.MSI_UninstallParams
         }
 
         ## Build the MSI Parameters
@@ -378,7 +378,7 @@ function Execute-MSI
             $argsMSI = "$argsMSI $LoggingOptions $msiLogFile"
         }
         Else {
-            $argsMSI = "$argsMSI $configMSILoggingOptions $msiLogFile"
+            $argsMSI = "$argsMSI $Script:StateMgmt.Config.MSI_Options.MSI_LoggingOptions $msiLogFile"
         }
 
         ## Check if the MSI is already installed. If no valid ProductCode to check or SkipMSIAlreadyInstalledCheck supplied, then continue with requested MSI action.

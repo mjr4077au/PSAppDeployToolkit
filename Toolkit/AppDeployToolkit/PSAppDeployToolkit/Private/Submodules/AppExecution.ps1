@@ -118,8 +118,8 @@ function Block-AppExecution
         [String]$schTaskBlockedAppsName = $installName + '_BlockedApps'
 
         ## Delete this file if it exists as it can cause failures (it is a bug from an older version of the toolkit)
-        If (Test-Path -LiteralPath "$configToolkitTempPath\PSAppDeployToolkit" -PathType 'Leaf' -ErrorAction 'SilentlyContinue') {
-            $null = Remove-Item -LiteralPath "$configToolkitTempPath\PSAppDeployToolkit" -Force -ErrorAction 'SilentlyContinue'
+        If (Test-Path -LiteralPath "$Script:StateMgmt.Config.Toolkit_Options.Toolkit_TempPath\PSAppDeployToolkit" -PathType 'Leaf' -ErrorAction 'SilentlyContinue') {
+            $null = Remove-Item -LiteralPath "$Script:StateMgmt.Config.Toolkit_Options.Toolkit_TempPath\PSAppDeployToolkit" -Force -ErrorAction 'SilentlyContinue'
         }
 
         If (Test-Path -LiteralPath $blockExecutionTempPath -PathType 'Container') {

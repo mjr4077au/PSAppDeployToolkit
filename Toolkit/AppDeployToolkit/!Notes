@@ -1,0 +1,22 @@
+!Notes
+
+* Repair all casing issues within code.
+* Don't define empty items in help blocks.
+* Catch blocks aren't meant to be empty.
+* Don't define empty blocks in funcs (begin {}/end {}) etc.
+* PascalCase for parameter variables, camelCase for generated variables.
+* #region tags are pure pollution... just collapse the func in your IDE?
+* Rework Write-FunctionHeaderOrFooter. There's no need to send it so much info, just use `Get-Variable -Scope 1` and get what you need from the caller.
+* Put the example explanation above the example, not after it.
+* Rework Remove-MSIApplications as using multi-dimensional arrays is awkward as.
+* On note of above, consider class-based object instead of generic types.
+* No need to waste time declaring [CmdletBinding()] when there's at least one parameter attribute decoration.
+* Don't have parameters accept widely varying formatting, such as Show-InstallationWelcome DeferDeadline.
+* Use proper array types when expecting multiple inputs. Don't accept a comma-joined string and split it ourselves...
+* So. many. booleans...
+* Don't use things like `-ContinueOnError`, this is what `-ErrorAction` is for from CmdletBinding!
+* Have one function do one thing only (i.e. don't do Invoke-RegisterOrUnregisterDLL, etc).
+* Don't do the above and then alias them to things like Register/Unregister! 🤦‍♂️
+* For things like New-MsiTransform, consider whether ValuesFromRemainingArguments is suitable here.
+* For functions like Test-Battery, don't return hashtables. Only ever return an object.
+* Can the huge ValidateSet in Set-ItemPermission not be an enum? I haven't looked up the API, but check it.

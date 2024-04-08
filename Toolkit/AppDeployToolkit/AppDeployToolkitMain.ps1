@@ -115,10 +115,11 @@ Add-Type -LiteralPath ($appDeployCustomTypesSourceCode = "$PSScriptRoot\AppDeplo
 . "$PSScriptRoot\PSAppDeployToolkit\Public\AppDeployToolkitPublic.ps1"
 
 New-Variable -Name StateMgmt -Option Constant -Value ([ordered]@{
-    Sessions = [System.Collections.Generic.List[System.String]]::new()
+    DotSourced = $MyInvocation.InvocationName.Equals('.') -or [System.String]::IsNullOrWhiteSpace($MyInvocation.Line)
+    Variables = $null
+    Sessions = $null
     Config = $null
     UI = $null
-    Variables = $null
     Progress = [ordered]@{
         Runspace = [runspacefactory]::CreateRunspace()
         SyncHash = [hashtable]::Synchronized(@{})
@@ -145,7 +146,7 @@ function Initialize-PsadtVariableDatabase
     )
 
     # Return early if we've already initialised and we're not re-initing.
-    if ($Script:StateMgmt.Variables -and $Script:StateMgmt.Variables.Count -and !$Force)
+    if (!$Script:DotSourced -and $Script:StateMgmt.Variables -and $Script:StateMgmt.Variables.Count -and $Script:StateMgmt.Sessions -and $Script:StateMgmt.Sessions.Count -and !$Force)
     {
         return
     }
@@ -400,7 +401,7 @@ function Initialize-PsadtVariableDatabase
     $variables.Add('SessionZero', [boolean]($variables.IsLocalSystemAccount -or $variables.IsLocalServiceAccount -or $variables.IsNetworkServiceAccount -or $variables.IsServiceAccount))
 
     ## Variables: Logged on user information
-    $variables.Add('LoggedOnUserSessions', [psobject[]](Get-LoggedOnUser))
+    $variables.Add('LoggedOnUserSessions', [PSADT.QueryUser]::GetUserSessionInfo($env:ComputerName))
     $variables.Add('usersLoggedOn', [string[]]($variables.LoggedOnUserSessions | ForEach-Object {$_.NTAccount}))
     $variables.Add('CurrentLoggedOnUserSession', [psobject]($variables.LoggedOnUserSessions | Where-Object {$_.IsCurrentSession}))
     $variables.Add('CurrentConsoleUserSession', [psobject]($variables.LoggedOnUserSessions | Where-Object {$_.IsConsoleSession}))
@@ -423,27 +424,27 @@ function Initialize-PsadtVariableDatabase
     $variables.Add('HKUPrimaryLanguageShort', [string]$(if ($RunAsActiveUser)
     {
         # Read language defined by Group Policy
-        if (!([string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\MUI\Settings' -Value 'PreferredUILanguages'))
+        if (!([string[]]$HKULanguages = Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\MUI\Settings' -ErrorAction Ignore | Select-Object -ExpandProperty PreferredUILanguages -ErrorAction Ignore))
         {
-            [string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Control Panel\Desktop' -Value 'PreferredUILanguages' -SID $RunAsActiveUser.SID
+            [string[]]$HKULanguages = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser.SID)\Software\Policies\Microsoft\Windows\Control Panel\Desktop" -ErrorAction Ignore | Select-Object -ExpandProperty PreferredUILanguages -ErrorAction Ignore
         }
 
         # Read language for Win Vista & higher machines
         if (!$HKULanguages)
         {
-            [string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop' -Value 'PreferredUILanguages' -SID $RunAsActiveUser.SID
+            [string[]]$HKULanguages = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser.SID)\Control Panel\Desktop" -ErrorAction Ignore | Select-Object -ExpandProperty PreferredUILanguages -ErrorAction Ignore
         }
         if (!$HKULanguages)
         {
-            [string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop\MuiCached' -Value 'MachinePreferredUILanguages' -SID $RunAsActiveUser.SID
+            [string[]]$HKULanguages = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser.SID)\Control Panel\Desktop\MuiCached" -ErrorAction Ignore | Select-Object -ExpandProperty MachinePreferredUILanguages -ErrorAction Ignore
         }
         if (!$HKULanguages)
         {
-            [string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\International' -Value 'LocaleName' -SID $RunAsActiveUser.SID
+            [string[]]$HKULanguages = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser.SID)\Control Panel\International" -ErrorAction Ignore | Select-Object -ExpandProperty LocaleName -ErrorAction Ignore
         }
 
         # Read language for Win XP machines
-        if (!$HKULanguages -and ($HKULocale = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\International' -Value 'Locale' -SID $RunAsActiveUser.SID))
+        if (!$HKULanguages -and ($HKULocale = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser.SID)\Control Panel\International" -ErrorAction Ignore | Select-Object -ExpandProperty Locale -ErrorAction Ignore))
         {
             [string[]]$HKULanguages = ([Globalization.CultureInfo]([System.Convert]::ToInt32('0x' + $HKULocale, 16))).Name
         }
@@ -557,11 +558,11 @@ function Initialize-PsadtVariableDatabase
     {
         if ($variables.dpiPixels -lt 1)
         {
-            $variables.dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics' -Value 'AppliedDPI' -SID $RunAsActiveUser.SID
+            $variables.dpiPixels = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser)\Control Panel\Desktop\WindowMetrics" -ErrorAction Ignore | Select-Object -ExpandProperty AppliedDPI -ErrorAction Ignore
         }
         if ($variables.dpiPixels -lt 1)
         {
-            $variables.dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop' -Value 'LogPixels' -SID $RunAsActiveUser.SID
+            $variables.dpiPixels = Get-ItemProperty -LiteralPath "Registry::HKEY_USERS\$($variables.RunAsActiveUser)\Control Panel\Desktop" -ErrorAction Ignore | Select-Object -ExpandProperty LogPixels -ErrorAction Ignore
         }
         $variables.UserDisplayScaleFactor = $true
     }
@@ -599,11 +600,19 @@ function Import-PsadtVariables
     Initialize-PsadtVariableDatabase -Force:$Force
 
     # Create variables within the provided session.
-    $ExecutionContext.InvokeCommand.InvokeScript(
-        $Cmdlet.SessionState,
-        {$args[0].GetEnumerator().ForEach({New-Variable -Name $_.Name -Value $_.Value -Force})}.Ast.GetScriptBlock(),
-        $Script:StateMgmt.Variables
-    )
+    if (!$Script:StateMgmt.DotSourced)
+    {
+        $ExecutionContext.InvokeCommand.InvokeScript(
+            $Cmdlet.SessionState,
+            {$args[0].GetEnumerator().ForEach({New-Variable -Name $_.Name -Value $_.Value -Force})}.Ast.GetScriptBlock(),
+            $Script:StateMgmt.Variables
+        )
+    }
+    else
+    {
+        # When dot-sourcing during the v4.0 transition, just pump variables into the scope above.
+        $Script:StateMgmt.Variables.GetEnumerator().ForEach({New-Variable -Name $_.Name -Value $_.Value -Scope 1 -Force})
+    }
 }
 
 filter Convert-PsadtConfigToObjects
@@ -699,15 +708,17 @@ function Import-PsadtConfig
         [System.Management.Automation.SwitchParameter]$Force
     )
 
-    # Return early if we've already initialised and we're not re-initing.
-    if ($Script:StateMgmt.Config -and $Script:StateMgmt.UI -and !$Force)
-    {
-        return
-    }
-
     # We need the PSADT variables within this function's scope
     # so we can expand variables when we convert the XML data.
-    Import-PsadtVariables -Cmdlet $PSCmdlet -Force:$Force
+    if (!$Script:DotSourced)
+    {
+        # Return early if we've already initialised and we're not re-initing.
+        if ($Script:StateMgmt.Config -and $Script:StateMgmt.UI -and $Script:StateMgmt.Sessions -and $Script:StateMgmt.Sessions.Count -and !$Force)
+        {
+            return
+        }
+        Import-PsadtVariables -Cmdlet $PSCmdlet -Force:$Force
+    }
 
     # Load in the XML file, doing it correctly and not with a simple cast.
     $xml = [System.Xml.XmlDocument]::new()

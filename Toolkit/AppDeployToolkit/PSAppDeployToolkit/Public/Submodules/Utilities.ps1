@@ -108,7 +108,6 @@ function Get-HardwarePlatform
     }
     Process {
         Try {
-            Write-Log -Message 'Retrieving hardware platform information.' -Source ${CmdletName}
             $hwBios = Get-WmiObject -Class 'Win32_BIOS' -ErrorAction 'Stop' | Select-Object -Property 'Version', 'SerialNumber'
             $hwMakeModel = Get-WmiObject -Class 'Win32_ComputerSystem' -ErrorAction 'Stop' | Select-Object -Property 'Model', 'Manufacturer'
 

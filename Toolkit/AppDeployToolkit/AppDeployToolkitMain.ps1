@@ -102,6 +102,15 @@ Param (
 ##*=============================================
 #region VariableDeclaration
 
+## Add the custom types required for the toolkit
+Add-Type -LiteralPath ($appDeployCustomTypesSourceCode = "$PSScriptRoot\AppDeployToolkitMain.cs") -ErrorAction Stop -ReferencedAssemblies $(
+    'System.Drawing', 'System.Windows.Forms', 'System.DirectoryServices'
+    if ($PSVersionTable.PSEdition.Equals('Core'))
+    {
+        'System.Collections', 'System.Text.RegularExpressions', 'System.Security.Principal.Windows', 'System.ComponentModel.Primitives', 'Microsoft.Win32.Primitives'
+    }
+)
+
 . "$PSScriptRoot\PSAppDeployToolkit\Private\AppDeployToolkitPrivate.ps1"
 . "$PSScriptRoot\PSAppDeployToolkit\Public\AppDeployToolkitPublic.ps1"
 
@@ -402,11 +411,11 @@ function Initialize-PsadtVariableDatabase
         # If no console user exists but users are logged in, such as on terminal servers, then the first logged-in non-console user that is either 'Active' or 'Connected' is the active user.
         if ($IsMultiSessionOS)
         {
-            $variables.LoggedOnUserSessions | Where-Object { $_.IsCurrentSession }
+            $variables.LoggedOnUserSessions | Where-Object {$_.IsCurrentSession}
         }
         else
         {
-            $variables.LoggedOnUserSessions | Where-Object { $_.IsActiveUserSession }
+            $variables.LoggedOnUserSessions | Where-Object {$_.IsActiveUserSession}
         }
     }))
 
@@ -414,14 +423,11 @@ function Initialize-PsadtVariableDatabase
     $variables.Add('HKUPrimaryLanguageShort', [string]$(if ($RunAsActiveUser)
     {
         # Read language defined by Group Policy
-        if (!($HKULanguages = $null))
-        {
-            [string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\MUI\Settings' -Value 'PreferredUILanguages'
-        }
-        if (!$HKULanguages)
+        if (!([string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\MUI\Settings' -Value 'PreferredUILanguages'))
         {
             [string[]]$HKULanguages = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Control Panel\Desktop' -Value 'PreferredUILanguages' -SID $RunAsActiveUser.SID
         }
+
         # Read language for Win Vista & higher machines
         if (!$HKULanguages)
         {
@@ -437,12 +443,9 @@ function Initialize-PsadtVariableDatabase
         }
 
         # Read language for Win XP machines
-        if (!$HKULanguages)
+        if (!$HKULanguages -and ($HKULocale = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\International' -Value 'Locale' -SID $RunAsActiveUser.SID))
         {
-            if ($HKULocale = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\International' -Value 'Locale' -SID $RunAsActiveUser.SID)
-            {
-                [string[]]$HKULanguages = ([Globalization.CultureInfo]([System.Convert]::ToInt32('0x' + $HKULocale, 16))).Name
-            }
+            [string[]]$HKULanguages = ([Globalization.CultureInfo]([System.Convert]::ToInt32('0x' + $HKULocale, 16))).Name
         }
 
         # Determine the language if we found anything of use.
@@ -479,6 +482,103 @@ function Initialize-PsadtVariableDatabase
             }
         }
     }))
+
+    ## Variables: Executables
+    $variables.Add('exeWusa', [string]"$($variables.envWinDir)\System32\wusa.exe") # Installs Standalone Windows Updates
+    $variables.Add('exeMsiexec', [string]"$($variables.envWinDir)\System32\msiexec.exe") # Installs MSI Installers
+    $variables.Add('exeSchTasks', [string]"$($variables.envWinDir)\System32\schtasks.exe") # Manages Scheduled Tasks
+
+    ## Variables: RegEx Patterns
+    $variables.Add('MSIProductCodeRegExPattern', [string]'^(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})$')
+
+    ## Variables: Invalid FileName Characters
+    $variables.Add('invalidFileNameChars', [char[]][System.IO.Path]::GetInvalidFileNameChars())
+
+    ## Variables: Registry Keys
+    # Registry keys for native and WOW64 applications
+    $variables.Add('regKeyApplications', [string[]]('Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall'))
+    $variables.Add('regKeyLotusNotes', [string]"Registry::HKEY_LOCAL_MACHINE\SOFTWARE\$(if ($variables.Is64Bit) {'Wow6432Node\'})Lotus\Notes")
+    $variables.Add('regKeyAppExecution', [string]'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options')
+
+    ## Variables: User Temp Path. When running in system context we can derive the native "C:\Users" base path from the Public environment variable.
+    $variables.Add('loggedOnUserTempPath', [string]$(if (($null -ne $variables.RunAsActiveUser.NTAccount) -and [System.IO.Directory]::Exists(($runasUserProfile = "$(Split-Path -LiteralPath $variables.envPublic)\$($variables.RunAsActiveUser.UserName)")))
+    {
+        [System.IO.Directory]::CreateDirectory($runasUserProfile).FullName
+    }
+    else
+    {
+        "$dirAppDeployTemp\ExecuteAsUser"
+    }))
+
+    ## Variables: System DPI Scale Factor (Requires PSADT.UiAutomation loaded)
+    [System.Drawing.Graphics]$GraphicsObject = $null
+    [System.IntPtr]$DeviceContextHandle = [IntPtr]::Zero
+    $variables.Add('UserDisplayScaleFactor', [boolean]$false)
+    $variables.Add('dpiScale', [int32]0)
+    $variables.Add('dpiPixels', [int32]0)
+
+    # If a user is logged on, then get display scale factor for logged on user (even if running in session 0).
+    try
+    {
+        # Get Graphics Object from the current Window Handle.
+        [System.Drawing.Graphics]$GraphicsObject = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero)
+
+        # Get Device Context Handle.
+        [IntPtr]$DeviceContextHandle = $GraphicsObject.GetHdc()
+
+        # Get Logical and Physical screen height.
+        [int32]$LogicalScreenHeight = [PSADT.UiAutomation]::GetDeviceCaps($DeviceContextHandle, [int32][PSADT.UiAutomation+DeviceCap]::VERTRES)
+        [int32]$PhysicalScreenHeight = [PSADT.UiAutomation]::GetDeviceCaps($DeviceContextHandle, [int32][PSADT.UiAutomation+DeviceCap]::DESKTOPVERTRES)
+
+        # Calculate DPI scale and pixels.
+        $variables.dpiScale = [System.Math]::Round([double]$PhysicalScreenHeight / [double]$LogicalScreenHeight, 2) * 100
+        $variables.dpiPixels = [System.Math]::Round(($variables.dpiScale / 100) * 96, 0)
+    }
+    catch
+    {
+        $variables.dpiScale = 0
+        $variables.dpiPixels = 0
+    }
+    finally
+    {
+        # Release the device context handle and dispose of the graphics object.
+        if ($null -ne $GraphicsObject)
+        {
+            if ($DeviceContextHandle -ne [IntPtr]::Zero)
+            {
+                $GraphicsObject.ReleaseHdc($DeviceContextHandle)
+            }
+            $GraphicsObject.Dispose()
+        }
+    }
+
+    # Failed to get dpi, try to read them from registry - Might not be accurate.
+    if ($variables.RunAsActiveUser)
+    {
+        if ($variables.dpiPixels -lt 1)
+        {
+            $variables.dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics' -Value 'AppliedDPI' -SID $RunAsActiveUser.SID
+        }
+        if ($variables.dpiPixels -lt 1)
+        {
+            $variables.dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop' -Value 'LogPixels' -SID $RunAsActiveUser.SID
+        }
+        $variables.UserDisplayScaleFactor = $true
+    }
+
+    # Failed to get dpi from first two registry entries, try to read FontDPI - Usually inaccurate.
+    if ($variables.dpiPixels -lt 1)
+    {
+        #  This registry setting only exists if system scale factor has been changed at least once.
+        $variables.dpiPixels = Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontDPI' -ErrorAction Ignore | Select-Object -ExpandProperty LogPixels -ErrorAction Ignore
+        $variables.UserDisplayScaleFactor = $false
+    }
+
+    # Calculate DPI scale if its empty and we have DPI pixels.
+    if (($variables.dpiScale -lt 1) -and ($variables.dpiPixels -gt 0))
+    {
+        $variables.dpiScale = [System.Math]::Round(($variables.dpiPixels * 100) / 96)
+    }
 
     # Store variables within the module's scope.
     $Script:StateMgmt.Variables = $variables
@@ -611,7 +711,7 @@ function Import-PsadtConfig
 
     # Load in the XML file, doing it correctly and not with a simple cast.
     $xml = [System.Xml.XmlDocument]::new()
-    $xml.Load([System.Xml.XmlReader]::Create("$PSScriptRoot\AppDeployToolkitConfig.xml"))
+    $xml.Load([System.Xml.XmlReader]::Create($appDeployConfigFile))
     
     # Store config and UI within the module's scope.
     $Script:StateMgmt.Config = ($xml | Convert-PsadtConfigToObjects).AppDeployToolkit_Config
@@ -683,15 +783,7 @@ Else {
 }
 
 ## Variables: App Deploy Script Dependency Files
-[String]$appDeployConfigFile = Join-Path -Path $scriptRoot -ChildPath 'AppDeployToolkitConfig.xml'
-[String]$appDeployCustomTypesSourceCode = Join-Path -Path $scriptRoot -ChildPath 'AppDeployToolkitMain.cs'
 [String]$appDeployRunHiddenVbsFile = Join-Path -Path $scriptRoot -ChildPath 'RunHidden.vbs'
-If (-not (Test-Path -LiteralPath $appDeployConfigFile -PathType 'Leaf')) {
-    Throw 'App Deploy XML configuration file not found.'
-}
-If (-not (Test-Path -LiteralPath $appDeployCustomTypesSourceCode -PathType 'Leaf')) {
-    Throw 'App Deploy custom types source code file not found.'
-}
 
 #  App Deploy Optional Extensions File
 [String]$appDeployToolkitDotSourceExtensions = 'AppDeployToolkitExtensions.ps1'
@@ -717,28 +809,6 @@ If (!(Test-Path -LiteralPath 'variable:deploymentType')) {
 
 ## Ensure the deployment type is always title-case for log aesthetics.
 $deploymentType = $culture.TextInfo.ToTitleCase($deploymentType)
-
-## Variables: Executables
-[String]$exeWusa = "$envWinDir\System32\wusa.exe" # Installs Standalone Windows Updates
-[String]$exeMsiexec = "$envWinDir\System32\msiexec.exe" # Installs MSI Installers
-[String]$exeSchTasks = "$envWinDir\System32\schtasks.exe" # Manages Scheduled Tasks
-
-## Variables: RegEx Patterns
-[String]$MSIProductCodeRegExPattern = '^(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})$'
-
-## Variables: Invalid FileName Characters
-[Char[]]$invalidFileNameChars = [IO.Path]::GetinvalidFileNameChars()
-
-## Variables: Registry Keys
-#  Registry keys for native and WOW64 applications
-[String[]]$regKeyApplications = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
-If ($is64Bit) {
-    [String]$regKeyLotusNotes = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Lotus\Notes'
-}
-Else {
-    [String]$regKeyLotusNotes = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Lotus\Notes'
-}
-[String]$regKeyAppExecution = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
 
 ## COM Objects: Initialize
 [__ComObject]$Shell = New-Object -ComObject 'WScript.Shell' -ErrorAction 'SilentlyContinue'
@@ -770,61 +840,6 @@ If (Test-Path -LiteralPath 'variable:deferDays') {
     Remove-Variable -Name 'deferDays'
 }
 
-## Variables: System DPI Scale Factor (Requires PSADT.UiAutomation loaded)
-[ScriptBlock]$GetDisplayScaleFactor = {
-    #  If a user is logged on, then get display scale factor for logged on user (even if running in session 0)
-    [Boolean]$UserDisplayScaleFactor = $false
-    [System.Drawing.Graphics]$GraphicsObject = $null
-    [IntPtr]$DeviceContextHandle = [IntPtr]::Zero
-    [Int32]$dpiScale = 0
-    [Int32]$dpiPixels = 0
-
-    Try {
-        # Get Graphics Object from the current Window Handle
-        [System.Drawing.Graphics]$GraphicsObject = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero)
-        # Get Device Context Handle
-        [IntPtr]$DeviceContextHandle = $GraphicsObject.GetHdc()
-        # Get Logical and Physical screen height
-        [Int32]$LogicalScreenHeight = [PSADT.UiAutomation]::GetDeviceCaps($DeviceContextHandle, [Int32][PSADT.UiAutomation+DeviceCap]::VERTRES)
-        [Int32]$PhysicalScreenHeight = [PSADT.UiAutomation]::GetDeviceCaps($DeviceContextHandle, [Int32][PSADT.UiAutomation+DeviceCap]::DESKTOPVERTRES)
-        # Calculate dpi scale and pixels
-        [Int32]$dpiScale = [Math]::Round([Double]$PhysicalScreenHeight / [Double]$LogicalScreenHeight, 2) * 100
-        [Int32]$dpiPixels = [Math]::Round(($dpiScale / 100) * 96, 0)
-    }
-    Catch {
-        [Int32]$dpiScale = 0
-        [Int32]$dpiPixels = 0
-    }
-    Finally {
-        # Release the device context handle and dispose of the graphics object
-        If ($null -ne $GraphicsObject) {
-            If ($DeviceContextHandle -ne [IntPtr]::Zero) {
-                $GraphicsObject.ReleaseHdc($DeviceContextHandle)
-            }
-            $GraphicsObject.Dispose()
-        }
-    }
-    # Failed to get dpi, try to read them from registry - Might not be accurate
-    If ($RunAsActiveUser) {
-        If ($dpiPixels -lt 1) {
-            [Int32]$dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics' -Value 'AppliedDPI' -SID $RunAsActiveUser.SID
-        }
-        If ($dpiPixels -lt 1) {
-            [Int32]$dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_CURRENT_USER\Control Panel\Desktop' -Value 'LogPixels' -SID $RunAsActiveUser.SID
-        }
-        [Boolean]$UserDisplayScaleFactor = $true
-    }
-    # Failed to get dpi from first two registry entries, try to read FontDPI - Usually inaccurate
-    If ($dpiPixels -lt 1) {
-        #  This registry setting only exists if system scale factor has been changed at least once
-        [Int32]$dpiPixels = Get-RegistryKey -Key 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontDPI' -Value 'LogPixels'
-        [Boolean]$UserDisplayScaleFactor = $false
-    }
-    # Calculate dpi scale if its empty and we have dpi pixels
-    If (($dpiScale -lt 1) -and ($dpiPixels -gt 0)) {
-        [Int32]$dpiScale = [Math]::Round(($dpiPixels * 100) / 96)
-    }
-}
 ## Variables: Resolve Parameters. For use in a pipeline
 filter Resolve-Parameters {
     Param (
@@ -908,15 +923,6 @@ If ($invokingScript) {
     }
 }
 
-## Add the custom types required for the toolkit
-If (-not ([Management.Automation.PSTypeName]'PSADT.UiAutomation').Type) {
-    [String[]]$ReferencedAssemblies = 'System.Drawing', 'System.Windows.Forms', 'System.DirectoryServices'
-    If ($PSVersionTable.PSEdition.Equals('Core')) {
-        $ReferencedAssemblies += 'System.Collections', 'System.Text.RegularExpressions', 'System.Security.Principal.Windows', 'System.ComponentModel.Primitives', 'Microsoft.Win32.Primitives'
-    }
-    Add-Type -Path $appDeployCustomTypesSourceCode -ReferencedAssemblies $ReferencedAssemblies -IgnoreWarnings -ErrorAction 'Stop'
-}
-
 ## Set process as DPI-aware for better dialog rendering.
 [System.Void][PSADT.UiAutomation]::SetProcessDPIAware()
 
@@ -924,32 +930,8 @@ If (-not ([Management.Automation.PSTypeName]'PSADT.UiAutomation').Type) {
 [ScriptBlock]$DisableScriptLogging = { $OldDisableLoggingValue = $DisableLogging ; $DisableLogging = $true }
 [ScriptBlock]$RevertScriptLogging = { $DisableLogging = $OldDisableLoggingValue }
 
-[ScriptBlock]$GetLoggedOnUserTempPath = {
-    # When running in system context we can derive the native "C:\Users" base path from the Public environment variable
-    [String]$dirUserProfile = Split-path $envPublic -ErrorAction 'SilentlyContinue'
-    If ($null -ne $RunAsActiveUser.NTAccount) {
-        [String]$userProfileName = $RunAsActiveUser.UserName
-        If (Test-Path (Join-Path -Path $dirUserProfile -ChildPath $userProfileName -ErrorAction 'SilentlyContinue')) {
-            [String]$runasUserProfile = Join-Path -Path $dirUserProfile -ChildPath $userProfileName -ErrorAction 'SilentlyContinue'
-            [String]$loggedOnUserTempPath = Join-Path -Path $runasUserProfile -ChildPath (Join-Path -Path $appDeployToolkitName -ChildPath 'ExecuteAsUser')
-            If (-not (Test-Path -LiteralPath $loggedOnUserTempPath -PathType 'Container' -ErrorAction 'SilentlyContinue')) {
-                $null = New-Item -Path $loggedOnUserTempPath -ItemType 'Directory' -Force -ErrorAction 'SilentlyContinue'
-            }
-        }
-    }
-    Else {
-        [String]$loggedOnUserTempPath = Join-Path -Path $dirAppDeployTemp -ChildPath 'ExecuteAsUser'
-    }
-}
-
 ## Disable logging until log file details are available
 . $DisableScriptLogging
-
-## Dot source ScriptBlock to create temporary directory of logged on user
-. $GetLoggedOnUserTempPath
-
-## Dot source ScriptBlock to get system DPI scale factor
-. $GetDisplayScaleFactor
 
 ## Assemblies: Load
 Try {

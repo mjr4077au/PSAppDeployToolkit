@@ -2911,3 +2911,65 @@ function Get-SidTypeAccountName
     # Translate the SidType into its user-readable name.
     return [System.Security.Principal.SecurityIdentifier]::new($WellKnownSidType, $null).Translate([System.Security.Principal.NTAccount]).Value
 }
+
+
+#---------------------------------------------------------------------------
+#
+# 
+#
+#---------------------------------------------------------------------------
+
+filter Resolve-Parameters
+{
+    # Save off the invocation's command.
+    $thisFunc = $MyInvocation.MyCommand
+
+    # Process the piped hashtable.
+    $_.GetEnumerator().ForEach({
+        begin {
+            # Establish array to hold return string.
+            if (!(Test-Path -LiteralPath 'Variable:paramsArr'))
+            {
+                $paramsArr = [System.Collections.Generic.List[System.String]]::new()
+            }
+        }
+        process {
+            # Recursively expand child hashtables.
+            if ($_.Value -isnot [System.Collections.IDictionary])
+            {
+                # Determine value.
+                $val = if ($_.Value -is [System.String])
+                {
+                    "'$($_.Value.Replace("'", "''"))'"
+                }
+                elseif ($_.Value -is [System.Collections.IEnumerable])
+                {
+                    if ($_.Value[0] -is [System.String])
+                    {
+                        "'$([System.String]::Join("','", $_.Value.Replace("'", "''")))'"
+                    }
+                    else
+                    {
+                        [System.String]::Join(',', $_.Value)
+                    }
+                }
+                else
+                {
+                    $_.Value
+                }
+                $paramsArr.Add("-$($_.Key):$val")
+            }
+            else
+            {
+                $_.Value | & $thisFunc
+            }
+        }
+        end {
+            # Join the array and return as a string to the caller.
+            if ((Get-PSCallStack).Command.Where({$_.Equals($thisFunc.Name)}).Count.Equals(1))
+            {
+                return [System.String]::Join(' ', $paramsArr)
+            }
+        }
+    })
+}

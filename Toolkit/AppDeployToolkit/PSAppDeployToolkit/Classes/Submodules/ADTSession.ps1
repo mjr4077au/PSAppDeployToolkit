@@ -732,6 +732,12 @@ class ADTSession
 
     [System.Void] Open()
     {
+        # Ensure this session isn't being opened twice.
+        if ($this.Session.Initialised)
+        {
+            throw [System.InvalidOperationException]::new("The current $($this.Session.Environment.appDeployToolkitName) session has already been opened.")
+        }
+
         # Dot-source script extensions if they exist.
         if ([System.IO.File]::Exists(($appDeployToolkitDotSourceExtensions = "$($this.Properties.ScriptParentPath)\AppDeployToolkitExtensions.ps1")))
         {

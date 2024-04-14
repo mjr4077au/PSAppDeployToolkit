@@ -62,7 +62,7 @@ Set-PSDebug -Strict
 Set-StrictMode -Version Latest
 
 # Import our local module.
-Import-Module -Name "$PSScriptRoot\PSAppDeployToolkit"
+Import-Module -Name "$PSScriptRoot\PSAppDeployToolkit" -DisableNameChecking
 
 # Open a new PSADT session.
 $sessionParams = @{

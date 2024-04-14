@@ -147,5 +147,3 @@ function Invoke-RegisterOrUnregisterDLL
         Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
     }
 }
-Set-Alias -Name 'Register-DLL' -Value 'Invoke-RegisterOrUnregisterDLL' -Scope 'Script' -Force -ErrorAction 'SilentlyContinue'
-Set-Alias -Name 'Unregister-DLL' -Value 'Invoke-RegisterOrUnregisterDLL' -Scope 'Script' -Force -ErrorAction 'SilentlyContinue'

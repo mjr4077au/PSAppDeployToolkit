@@ -99,42 +99,42 @@ function Write-Log
             }),
         [Parameter(Mandatory = $false, Position = 3)]
         [ValidateNotNullorEmpty()]
-        [String]$ScriptSection = $script:installPhase,
+        [String]$ScriptSection = (Get-ADTSession).GetPropertyValue('InstallPhase'),
         [Parameter(Mandatory = $false, Position = 4)]
         [ValidateSet('CMTrace', 'Legacy')]
-        [String]$LogType = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogStyle,
+        [String]$LogType = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogStyle,
         [Parameter(Mandatory = $false, Position = 5)]
         [ValidateNotNullorEmpty()]
-        [String]$LogFileDirectory = $(If ($Script:StateMgmt.Config.Toolkit_Options.Toolkit_CompressLogs) {
+        [String]$LogFileDirectory = $(If ((Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_CompressLogs) {
                 $logTempFolder
             }
             Else {
-                $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath
+                (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogPath
             }),
         [Parameter(Mandatory = $false, Position = 6)]
         [ValidateNotNullorEmpty()]
-        [String]$LogFileName = $logName,
+        [String]$LogFileName = (Get-ADTSession).GetPropertyValue('LogName'),
         [Parameter(Mandatory=$false,Position=7)]
         [ValidateNotNullorEmpty()]
-        [Boolean]$AppendToLogFile = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogAppend,
+        [Boolean]$AppendToLogFile = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogAppend,
         [Parameter(Mandatory=$false,Position=8)]
         [ValidateNotNullorEmpty()]
-        [Int]$MaxLogHistory = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxHistory,
+        [Int]$MaxLogHistory = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogMaxHistory,
         [Parameter(Mandatory = $false, Position = 9)]
         [ValidateNotNullorEmpty()]
-        [Decimal]$MaxLogFileSizeMB = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxSize,
+        [Decimal]$MaxLogFileSizeMB = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogMaxSize,
 	    [Parameter(Mandatory=$false,Position=10)]
         [ValidateNotNullorEmpty()]
         [Boolean]$ContinueOnError = $true,
         [Parameter(Mandatory = $false, Position = 11)]
         [ValidateNotNullorEmpty()]
-        [Boolean]$WriteHost = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogWriteToHost,
+        [Boolean]$WriteHost = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogWriteToHost,
         [Parameter(Mandatory=$false,Position=12)]
         [Switch]$PassThru = $false,
 	    [Parameter(Mandatory=$false,Position=13)]
         [Switch]$DebugMessage = $false,
 	    [Parameter(Mandatory=$false,Position=14)]
-        [Boolean]$LogDebugMessage = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogDebugMessage
+        [Boolean]$LogDebugMessage = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogDebugMessage
     )
 
     Begin {
@@ -452,16 +452,16 @@ function Exit-Script
     }
 
     ## If Terminal Server mode was set, turn it off
-    If ($terminalServerMode) {
+    If ((Get-ADTSession).GetPropertyValue('TerminalServerMode')) {
         Disable-TerminalServerInstallMode
     }
 
     ## Determine action based on exit code
     Switch ($exitCode) {
-        $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode {
+        (Get-ADTSession).GetConfig().UI_Options.InstallationUI_ExitCode {
             $installSuccess = $false
         }
-        $Script:StateMgmt.Config.UI_Options.InstallationDefer_ExitCode {
+        (Get-ADTSession).GetConfig().UI_Options.InstallationDefer_ExitCode {
             $installSuccess = $false
         }
         {$ValidExitCodes -contains $_} {
@@ -473,21 +473,21 @@ function Exit-Script
     }
 
     ## Determine if balloon notification should be shown
-    If ($deployModeSilent) {
-        [Boolean]$Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications = $false
+    If ((Get-ADTSession).Session.State.DeployModeSilent) {
+        [Boolean](Get-ADTSession).GetConfig().UI_Options.ShowBalloonNotifications = $false
     }
 
     If ($installSuccess) {
         If (Test-Path -LiteralPath $regKeyDeferHistory -ErrorAction 'SilentlyContinue') {
             Write-Log -Message 'Removing deferral history...' -Source ${CmdletName}
-            Remove-RegistryKey -Key $regKeyDeferHistory -Recurse
+            Remove-RegistryKey -Key (Get-ADTSession).Session.RegKeyDeferHistory -Recurse
         }
 
-        [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_Complete)"
+        [String]$balloonText = "$((Get-ADTSession).Session.State.DeploymentTypeName) $((Get-ADTSession).GetUiMessages().BalloonText_Complete)"
         ## Handle reboot prompts on successful script completion
         If (($AllowRebootPassThru) -and ((($msiRebootDetected) -or ($exitCode -eq 3010)) -or ($exitCode -eq 1641))) {
             Write-Log -Message 'A restart has been flagged as required.' -Source ${CmdletName}
-            [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_RestartRequired)"
+            [String]$balloonText = "$((Get-ADTSession).Session.State.DeploymentTypeName) $((Get-ADTSession).GetUiMessages().BalloonText_RestartRequired)"
             If (($msiRebootDetected) -and ($exitCode -ne 1641)) {
                 [Int32]$exitCode = 3010
             }
@@ -496,22 +496,22 @@ function Exit-Script
             [Int32]$exitCode = 0
         }
 
-        Write-Log -Message "$installName $($deploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 0
-        If ($Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications) {
+        Write-Log -Message "$((Get-ADTSession).GetPropertyValue('installName')) $((Get-ADTSession).Session.State.DeploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 0
+        If ((Get-ADTSession).GetConfig().UI_Options.ShowBalloonNotifications) {
             Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText -NoWait
         }
     }
-    ElseIf (($exitCode -eq $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode) -or ($exitCode -eq $Script:StateMgmt.Config.UI_Options.InstallationDefer_ExitCode)) {
-        Write-Log -Message "$installName $($deploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 2
-        [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_FastRetry)"
-        If ($Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications) {
+    ElseIf (($exitCode -eq (Get-ADTSession).GetConfig().UI_Options.InstallationUI_ExitCode) -or ($exitCode -eq (Get-ADTSession).GetConfig().UI_Options.InstallationDefer_ExitCode)) {
+        Write-Log -Message "$((Get-ADTSession).GetPropertyValue('installName')) $((Get-ADTSession).Session.State.DeploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 2
+        [String]$balloonText = "$((Get-ADTSession).Session.State.DeploymentTypeName) $((Get-ADTSession).GetUiMessages().BalloonText_FastRetry)"
+        If ((Get-ADTSession).GetConfig().UI_Options.ShowBalloonNotifications) {
             Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText -NoWait
         }
     }
     Else {
-        Write-Log -Message "$installName $($deploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 3
-        [String]$balloonText = "$deploymentTypeName $($Script:UI.BalloonText_Error)"
-        If ($Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications) {
+        Write-Log -Message "$((Get-ADTSession).GetPropertyValue('installName')) $((Get-ADTSession).Session.State.DeploymentTypeName.ToLower()) completed with exit code [$exitcode]." -Source ${CmdletName} -Severity 3
+        [String]$balloonText = "$((Get-ADTSession).Session.State.DeploymentTypeName) $((Get-ADTSession).GetUiMessages().BalloonText_Error)"
+        If ((Get-ADTSession).GetConfig().UI_Options.ShowBalloonNotifications) {
             Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText -NoWait
         }
     }
@@ -520,21 +520,21 @@ function Exit-Script
     Write-Log -Message $LogDash -Source ${CmdletName}
 
     ## Archive the log files to zip format and then delete the temporary logs folder
-    If ($Script:StateMgmt.Config.Toolkit_Options.Toolkit_CompressLogs) {
+    If ((Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_CompressLogs) {
         ## Disable logging to file so that we can archive the log files
         . $DisableScriptLogging
 
         Try {
             # Get all archive files sorted by last write time
-            $ArchiveFiles = Get-ChildItem -LiteralPath $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath -Filter ($installName + '_' + $deploymentType + '_*.zip') | Sort-Object LastWriteTime
+            $ArchiveFiles = Get-ChildItem -LiteralPath (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogPath -Filter ($installName + '_' + $deploymentType + '_*.zip') | Sort-Object LastWriteTime
 
             # Keep only the max number of archive files
-            if ($ArchiveFiles.Count -gt $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxHistory) {
-                $ArchiveFiles | Select-Object -First ($ArchiveFiles.Count - $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogMaxHistory) | Remove-Item -ErrorAction 'Stop'
+            if ($ArchiveFiles.Count -gt (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogMaxHistory) {
+                $ArchiveFiles | Select-Object -First ($ArchiveFiles.Count - (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogMaxHistory) | Remove-Item -ErrorAction 'Stop'
             }
 
             [String]$DestinationArchiveFileName = $installName + '_' + $deploymentType + '_' + ((Get-Date -Format 'yyyy-MM-dd-HH-mm-ss').ToString()) + '.zip'
-            New-ZipFile -DestinationArchiveDirectoryPath $Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath -DestinationArchiveFileName $DestinationArchiveFileName -SourceDirectory $logTempFolder -RemoveSourceAfterArchiving
+            New-ZipFile -DestinationArchiveDirectoryPath (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogPath -DestinationArchiveFileName $DestinationArchiveFileName -SourceDirectory $logTempFolder -RemoveSourceAfterArchiving
         }
         Catch {
             Write-Host -Object "[$LogDate $LogTime] [${CmdletName}] $ScriptSection :: Failed to manage archive file [$DestinationArchiveFileName]. `r`n$(Resolve-Error)" -ForegroundColor 'Red'
@@ -550,12 +550,8 @@ function Exit-Script
         }
     }
     ## Reset powershell window title to its previous title
-    $Host.UI.RawUI.WindowTitle = $oldPSWindowTitle
-    ## Reset variables in case another toolkit is being run in the same session
-    $global:logName = $null
-    $global:installTitle = $null
-    $global:installName = $null
-    $global:appName = $null
+    $Host.UI.RawUI.WindowTitle = (Get-ADTSession).Session.State.OldPSWindowTitle
+    [System.Void]$Script:ADTSessions.Remove((Get-ADTSession))
     ## Exit the script, returning the exit code to SCCM
     If (Test-Path -LiteralPath 'variable:HostInvocation') {
         $script:ExitCode = $exitCode; Exit

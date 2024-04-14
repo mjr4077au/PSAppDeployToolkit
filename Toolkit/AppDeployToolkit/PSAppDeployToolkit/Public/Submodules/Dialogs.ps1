@@ -77,7 +77,7 @@ function Show-InstallationPrompt
     Param (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$Title = $installTitle,
+        [String]$Title = (Get-ADTSession).GetPropertyValue('InstallTitle'),
         [Parameter(Mandatory = $false)]
         [String]$Message = '',
         [Parameter(Mandatory = $false)]
@@ -101,7 +101,7 @@ function Show-InstallationPrompt
         [Boolean]$MinimizeWindows = $false,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [Int32]$Timeout = $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout,
+        [Int32]$Timeout = (Get-ADTSession).GetConfig().UI_Options.InstallationUI_Timeout,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
         [Boolean]$ExitOnTimeout = $true,
@@ -126,7 +126,7 @@ function Show-InstallationPrompt
         [Hashtable]$installPromptParameters = $PSBoundParameters
 
         ## Check if the countdown was specified
-        If ($timeout -gt $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout) {
+        If ($timeout -gt (Get-ADTSession).GetConfig().UI_Options.InstallationUI_Timeout) {
             [String]$CountdownTimeoutErr = 'The installation UI dialog timeout cannot be longer than the timeout specified in the XML configuration file.'
             Write-Log -Message $CountdownTimeoutErr -Severity 3 -Source ${CmdletName}
             Throw $CountdownTimeoutErr
@@ -209,8 +209,8 @@ function Show-InstallationPrompt
 
         ## Picture Banner
         $pictureBanner.DataBindings.DefaultDataSourceUpdateMode = 0
-        $pictureBanner.ImageLocation = $appDeployLogoBanner
-        $pictureBanner.ClientSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList (450, $appDeployLogoBannerHeight)
+        $pictureBanner.ImageLocation = (Get-ADTSession).GetConfig().BannerIcon_Options.Banner_Filename
+        $pictureBanner.ClientSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList (450, (Get-ADTSession).Session.BannerHeight)
         $pictureBanner.MinimumSize = $DefaultControlSize
         $pictureBanner.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
         $pictureBanner.Margin = $paddingNone
@@ -396,7 +396,7 @@ function Show-InstallationPrompt
         $formInstallationPrompt.AutoSize = $true
         $formInstallationPrompt.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
         $formInstallationPrompt.AutoScaleDimensions = New-Object System.Drawing.SizeF(96,96)
-        $formInstallationPrompt.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($AppDeployLogoIcon)
+        $formInstallationPrompt.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList (Get-ADTSession).GetConfig().BannerIcon_Options.Icon_Filename
         $formInstallationPrompt.Controls.Add($pictureBanner)
         $formInstallationPrompt.Controls.Add($buttonAbort)
         $formInstallationPrompt.Controls.Add($flowLayoutPanel)
@@ -418,7 +418,7 @@ function Show-InstallationPrompt
         ## Persistence Timer
         If ($persistPrompt) {
             $installPromptTimerPersist = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $installPromptTimerPersist.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationPrompt_PersistInterval * 1000)
+            $installPromptTimerPersist.Interval = ((Get-ADTSession).GetConfig().UI_Options.InstallationPrompt_PersistInterval * 1000)
             [ScriptBlock]$installPromptTimerPersist_Tick = {
                 $formInstallationPrompt.WindowState = 'Normal'
                 $formInstallationPrompt.TopMost = $TopMost
@@ -443,7 +443,7 @@ function Show-InstallationPrompt
         While ($showDialog) {
             # Minimize all other windows
             If ($minimizeWindows) {
-                $null = $shellApp.MinimizeAll()
+                $null = (Get-ADTSession).Session.ShellApp.MinimizeAll()
             }
             # Show the Form
             $formInstallationPrompt.ResumeLayout()
@@ -466,9 +466,9 @@ function Show-InstallationPrompt
             }
             'Abort' {
                 # Restore minimized windows
-                $null = $shellApp.UndoMinimizeAll()
+                $null = (Get-ADTSession).Session.ShellApp.UndoMinimizeAll()
                 If ($ExitOnTimeout) {
-                    Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode
+                    Exit-Script -ExitCode (Get-ADTSession).GetConfig().UI_Options.InstallationUI_ExitCode
                 }
                 Else {
                     Write-Log -Message 'UI timed out but `$ExitOnTimeout set to `$false. Continue...' -Source ${CmdletName}
@@ -545,7 +545,7 @@ function Show-DialogBox
         [String]$Text,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$Title = $installTitle,
+        [String]$Title = (Get-ADTSession).GetPropertyValue('InstallTitle'),
         [Parameter(Mandatory = $false)]
         [ValidateSet('OK', 'OKCancel', 'AbortRetryIgnore', 'YesNoCancel', 'YesNo', 'RetryCancel', 'CancelTryAgainContinue')]
         [String]$Buttons = 'OK',
@@ -557,7 +557,7 @@ function Show-DialogBox
         [String]$Icon = 'None',
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$Timeout = $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout,
+        [String]$Timeout = (Get-ADTSession).GetConfig().UI_Options.InstallationUI_Timeout,
         [Parameter(Mandatory = $false)]
         [Boolean]$TopMost = $true
     )
@@ -865,12 +865,12 @@ function Show-InstallationWelcome
     }
     Process {
         ## If running in NonInteractive mode, force the processes to close silently
-        If ($deployModeNonInteractive) {
+        If ((Get-ADTSession).Session.State.DeployModeNonInteractive) {
             $Silent = $true
         }
 
         ## If using Zero-Config MSI Deployment, append any executables found in the MSI to the CloseApps list
-        If ($useDefaultMsi) {
+        If ((Get-ADTSession).GetPropertyValue('UseDefaultMsi')) {
             $CloseApps = "$CloseApps,$defaultMsiExecutablesList"
         }
 
@@ -882,7 +882,7 @@ function Show-InstallationWelcome
                 Try {
                     #  Determine the size of the Files folder
                     $fso = New-Object -ComObject 'Scripting.FileSystemObject' -ErrorAction 'Stop'
-                    $RequiredDiskSpace = [Math]::Round((($fso.GetFolder($scriptParentPath).Size) / 1MB))
+                    $RequiredDiskSpace = [Math]::Round((($fso.GetFolder((Get-ADTSession).GetPropertyValue('ScriptParentPath')).Size) / 1MB))
                 }
                 Catch {
                     Write-Log -Message "Failed to calculate disk space requirement from source files. `r`n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
@@ -898,9 +898,9 @@ function Show-InstallationWelcome
             If ($freeDiskSpace -lt $RequiredDiskSpace) {
                 Write-Log -Message "Failed to meet minimum disk space requirement. Space Required [$RequiredDiskSpace MB], Space Available [$freeDiskSpace MB]." -Severity 3 -Source ${CmdletName}
                 If (-not $Silent) {
-                    Show-InstallationPrompt -Message ($Script:UI.DiskSpace_Message -f $installTitle, $RequiredDiskSpace, ($freeDiskSpace)) -ButtonRightText 'OK' -Icon 'Error'
+                    Show-InstallationPrompt -Message ((Get-ADTSession).GetUiMessages().DiskSpace_Message -f $installTitle, $RequiredDiskSpace, ($freeDiskSpace)) -ButtonRightText 'OK' -Icon 'Error'
                 }
-                Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode
+                Exit-Script -ExitCode (Get-ADTSession).GetConfig().UI_Options.InstallationUI_ExitCode
             }
             Else {
                 Write-Log -Message 'Successfully passed minimum disk space requirement check.' -Source ${CmdletName}
@@ -1003,7 +1003,7 @@ function Show-InstallationWelcome
         }
 
         ## Prompt the user to close running applications and optionally defer if enabled
-        If ((-not $deployModeSilent) -and (-not $silent)) {
+        If (!(Get-ADTSession).Session.State.DeployModeSilent -and !$Silent) {
             If ($forceCloseAppsCountdown -gt 0) {
                 #  Keep the same variable for countdown to simplify the code:
                 $closeAppsCountdown = $forceCloseAppsCountdown
@@ -1064,12 +1064,12 @@ function Show-InstallationWelcome
                         [PSObject[]]$AllOpenWindowsForRunningProcess = Get-WindowTitle -GetAllWindowTitles -DisableFunctionLogging | Where-Object { $_.ParentProcess -eq $runningProcess.ProcessName }
                         #  If the PromptToSave parameter was specified and the process has a window open, then prompt the user to save work if there is work to be saved when closing window
                         If (($PromptToSave) -and (-not ($SessionZero -and (-not $IsProcessUserInteractive))) -and ($AllOpenWindowsForRunningProcess) -and ($runningProcess.MainWindowHandle -ne [IntPtr]::Zero)) {
-                            [Timespan]$PromptToSaveTimeout = New-TimeSpan -Seconds $Script:StateMgmt.Config.UI_Options.InstallationPromptToSave_Timeout
+                            [Timespan]$PromptToSaveTimeout = New-TimeSpan -Seconds (Get-ADTSession).GetConfig().UI_Options.InstallationPromptToSave_Timeout
                             [Diagnostics.StopWatch]$PromptToSaveStopWatch = [Diagnostics.StopWatch]::StartNew()
                             $PromptToSaveStopWatch.Reset()
                             ForEach ($OpenWindow in $AllOpenWindowsForRunningProcess) {
                                 Try {
-                                    Write-Log -Message "Stopping process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)] and prompt to save if there is work to be saved (timeout in [$Script:StateMgmt.Config.UI_Options.InstallationPromptToSave_Timeout] seconds)..." -Source ${CmdletName}
+                                    Write-Log -Message "Stopping process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)] and prompt to save if there is work to be saved (timeout in [$((Get-ADTSession).GetConfig().UI_Options.InstallationPromptToSave_Timeout)] seconds)..." -Source ${CmdletName}
                                     [Boolean]$IsBringWindowToFrontSuccess = [PSADT.UiAutomation]::BringWindowToFront($OpenWindow.WindowHandle)
                                     [Boolean]$IsCloseWindowCallSuccess = $runningProcess.CloseMainWindow()
                                     If (-not $IsCloseWindowCallSuccess) {
@@ -1086,7 +1086,7 @@ function Show-InstallationWelcome
                                         } While (($IsWindowOpen) -and ($PromptToSaveStopWatch.Elapsed -lt $PromptToSaveTimeout))
                                         $PromptToSaveStopWatch.Reset()
                                         If ($IsWindowOpen) {
-                                            Write-Log -Message "Exceeded the [$Script:StateMgmt.Config.UI_Options.InstallationPromptToSave_Timeout] seconds timeout value for the user to save work associated with process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)]." -Severity 2 -Source ${CmdletName}
+                                            Write-Log -Message "Exceeded the [$((Get-ADTSession).GetConfig().UI_Options.InstallationPromptToSave_Timeout)] seconds timeout value for the user to save work associated with process [$($runningProcess.ProcessName)] with window title [$($OpenWindow.WindowTitle)]." -Severity 2 -Source ${CmdletName}
                                         }
                                         Else {
                                             Write-Log -Message "Window [$($OpenWindow.WindowTitle)] for process [$($runningProcess.ProcessName)] was successfully closed." -Source ${CmdletName}
@@ -1133,9 +1133,9 @@ function Show-InstallationWelcome
                     }
 
                     #  Restore minimized windows
-                    $null = $shellApp.UndoMinimizeAll()
+                    $null = (Get-ADTSession).Session.ShellApp.UndoMinimizeAll()
 
-                    Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationUI_ExitCode
+                    Exit-Script -ExitCode (Get-ADTSession).GetConfig().UI_Options.InstallationUI_ExitCode
                 }
                 #  Stop the script (user chose to defer)
                 ElseIf ($promptResult -eq 'Defer') {
@@ -1145,15 +1145,15 @@ function Show-InstallationWelcome
                     Set-DeferHistory -DeferTimesRemaining $DeferTimes -DeferDeadline $deferDeadlineUniversal
 
                     #  Restore minimized windows
-                    $null = $shellApp.UndoMinimizeAll()
+                    $null = (Get-ADTSession).Session.ShellApp.UndoMinimizeAll()
 
-                    Exit-Script -ExitCode $Script:StateMgmt.Config.UI_Options.InstallationDefer_ExitCode
+                    Exit-Script -ExitCode (Get-ADTSession).GetConfig().UI_Options.InstallationDefer_ExitCode
                 }
             }
         }
 
         ## Force the processes to close silently, without prompting the user
-        If (($Silent -or $deployModeSilent) -and $CloseApps) {
+        If (($Silent -or (Get-ADTSession).Session.State.DeployModeSilent) -and $CloseApps) {
             [Array]$runningProcesses = $null
             [Array]$runningProcesses = Get-RunningProcesses $processObjects
             If ($runningProcesses) {
@@ -1321,7 +1321,7 @@ function Show-InstallationRestartPrompt
         [Hashtable]$installRestartPromptParameters = $PSBoundParameters
 
         ## Check if we are already displaying a restart prompt
-        If (Get-Process | Where-Object { $_.MainWindowTitle -match $Script:UI.RestartPrompt_Title }) {
+        If (Get-Process | Where-Object { $_.MainWindowTitle -match (Get-ADTSession).GetUiMessages().RestartPrompt_Title }) {
             Write-Log -Message "${CmdletName} was invoked, but an existing restart prompt was detected. Cancelling restart prompt." -Severity 2 -Source ${CmdletName}
             Return
         }
@@ -1399,7 +1399,7 @@ function Show-InstallationRestartPrompt
         ## Persistence Timer
         If ($NoCountdown) {
             $restartTimerPersist = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $restartTimerPersist.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationRestartPrompt_PersistInterval * 1000)
+            $restartTimerPersist.Interval = ((Get-ADTSession).GetConfig().UI_Options.InstallationRestartPrompt_PersistInterval * 1000)
             [ScriptBlock]$restartTimerPersist_Tick = {
                 #  Show the Restart Popup
                 $formRestart.WindowState = 'Normal'
@@ -1482,11 +1482,11 @@ function Show-InstallationRestartPrompt
 
         ## Picture Banner
         $pictureBanner.DataBindings.DefaultDataSourceUpdateMode = 0
-        $pictureBanner.ImageLocation = $appDeployLogoBanner
+        $pictureBanner.ImageLocation = (Get-ADTSession).GetConfig().BannerIcon_Options.Banner_Filename
         $System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point' -ArgumentList (0, 0)
         $pictureBanner.Location = $System_Drawing_Point
         $pictureBanner.Name = 'pictureBanner'
-        $System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList (450, $appDeployLogoBannerHeight)
+        $System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList (450, (Get-ADTSession).Session.BannerHeight)
         $pictureBanner.ClientSize = $System_Drawing_Size
         $pictureBanner.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
         $pictureBanner.Margin = $paddingNone
@@ -1501,9 +1501,9 @@ function Show-InstallationRestartPrompt
         $labelMessage.MaximumSize = $defaultControlSize
         $labelMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 10, 0, 5)
         $labelMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
-        $labelMessage.Text = "$($Script:UI.RestartPrompt_Message) $($Script:UI.RestartPrompt_MessageTime)`n`n$($Script:UI.RestartPrompt_MessageRestart)"
+        $labelMessage.Text = "$((Get-ADTSession).GetUiMessages().RestartPrompt_Message) $((Get-ADTSession).GetUiMessages().RestartPrompt_MessageTime)`n`n$((Get-ADTSession).GetUiMessages().RestartPrompt_MessageRestart)"
         If ($NoCountdown) {
-            $labelMessage.Text = $Script:UI.RestartPrompt_Message
+            $labelMessage.Text = (Get-ADTSession).GetUiMessages().RestartPrompt_Message
         }
         $labelMessage.TextAlign = 'MiddleCenter'
         $labelMessage.Anchor = 'Top'
@@ -1520,7 +1520,7 @@ function Show-InstallationRestartPrompt
         $labelTimeRemaining.Margin = $paddingNone
         $labelTimeRemaining.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelTimeRemaining.TabStop = $false
-        $labelTimeRemaining.Text = $Script:UI.RestartPrompt_TimeRemaining
+        $labelTimeRemaining.Text = (Get-ADTSession).GetUiMessages().RestartPrompt_TimeRemaining
         $labelTimeRemaining.TextAlign = 'MiddleCenter'
         $labelTimeRemaining.Anchor = 'Top'
         $labelTimeRemaining.AutoSize = $true
@@ -1567,7 +1567,7 @@ function Show-InstallationRestartPrompt
         $buttonRestartLater.MinimumSize = $buttonSize
         $buttonRestartLater.MaximumSize = $buttonSize
         $buttonRestartLater.TabIndex = 0
-        $buttonRestartLater.Text = $Script:UI.RestartPrompt_ButtonRestartLater
+        $buttonRestartLater.Text = (Get-ADTSession).GetUiMessages().RestartPrompt_ButtonRestartLater
         $buttonRestartLater.AutoSize = $true
         $buttonRestartLater.Margin = $paddingNone
         $buttonRestartLater.Padding = $paddingNone
@@ -1583,7 +1583,7 @@ function Show-InstallationRestartPrompt
         $buttonRestartNow.MinimumSize = $buttonSize
         $buttonRestartNow.MaximumSize = $buttonSize
         $buttonRestartNow.TabIndex = 1
-        $buttonRestartNow.Text = $Script:UI.RestartPrompt_ButtonRestartNow
+        $buttonRestartNow.Text = (Get-ADTSession).GetUiMessages().RestartPrompt_ButtonRestartNow
         $buttonRestartNow.Margin = $paddingNone
         $buttonRestartNow.Padding = $paddingNone
         $buttonRestartNow.UseVisualStyleBackColor = $true
@@ -1602,7 +1602,7 @@ function Show-InstallationRestartPrompt
         $formRestart.MinimizeBox = $false
         $formRestart.TopMost = $TopMost
         $formRestart.TopLevel = $true
-        $formRestart.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($AppDeployLogoIcon)
+        $formRestart.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList (Get-ADTSession).GetConfig().BannerIcon_Options.Icon_Filename
         $formRestart.AutoSize = $true
         $formRestart.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
         $formRestart.AutoScaleDimensions = New-Object System.Drawing.SizeF(96,96)
@@ -1713,7 +1713,7 @@ function Show-BalloonTip
         [String]$BalloonTipText,
         [Parameter(Mandatory = $false, Position = 1)]
         [ValidateNotNullorEmpty()]
-        [String]$BalloonTipTitle = $installTitle,
+        [String]$BalloonTipTitle = (Get-ADTSession).GetPropertyValue('InstallTitle'),
         [Parameter(Mandatory = $false, Position = 2)]
         [ValidateSet('Error', 'Info', 'None', 'Warning')]
         [Windows.Forms.ToolTipIcon]$BalloonTipIcon = 'Info',
@@ -1731,8 +1731,8 @@ function Show-BalloonTip
     }
     Process {
         ## Skip balloon if in silent mode, disabled in the config or presentation is detected
-        If (($deployModeSilent) -or (-not $Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications)) {
-            Write-Log -Message "Bypassing Show-BalloonTip [Mode:$deployMode, Config Show Balloon Notifications:$Script:StateMgmt.Config.UI_Options.ShowBalloonNotifications]. BalloonTipText:$BalloonTipText" -Source ${CmdletName}
+        If (($deployModeSilent) -or (-not (Get-ADTSession).GetConfig().UI_Options.ShowBalloonNotifications)) {
+            Write-Log -Message "Bypassing Show-BalloonTip [Mode:$deployMode, Config Show Balloon Notifications:(Get-ADTSession).GetConfig().UI_Options.ShowBalloonNotifications]. BalloonTipText:$BalloonTipText" -Source ${CmdletName}
             Return
         }
         If (Test-PowerPoint) {
@@ -1748,7 +1748,7 @@ function Show-BalloonTip
             }
         }
 
-        If (($envOSVersionMajor -lt 10) -or ($Script:StateMgmt.Config.Toast_Options.Toast_Disable -eq $true)) {
+        If (($envOSVersionMajor -lt 10) -or ((Get-ADTSession).GetConfig().Toast_Options.Toast_Disable -eq $true)) {
             ## NoWait - Create the balloontip icon asynchronously
             If ($NoWait) {
                 Write-Log -Message "Displaying balloon tip notification asynchronously with message [$BalloonTipText]." -Source ${CmdletName}
@@ -1783,7 +1783,7 @@ function Show-BalloonTip
                         BalloonTipIcon  = $BalloonTipIcon
                         BalloonTipText  = $BalloonTipText
                         BalloonTipTitle = $BalloonTipTitle
-                        Icon            = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($AppDeployLogoIcon)
+                        Icon            = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList (Get-ADTSession).GetConfig().BannerIcon_Options.Icon_Filename
                         Text            = $BalloonTipIconText
                         Visible         = $true
                     }
@@ -1813,7 +1813,7 @@ function Show-BalloonTip
                     BalloonTipIcon  = $BalloonTipIcon
                     BalloonTipText  = $BalloonTipText
                     BalloonTipTitle = $BalloonTipTitle
-                    Icon            = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($AppDeployLogoIcon)
+                    Icon            = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList (Get-ADTSession).GetConfig().BannerIcon_Options.Icon_Filename
                     Text            = $BalloonTipIconText
                     Visible         = $true
                 }
@@ -1824,7 +1824,7 @@ function Show-BalloonTip
         # Otherwise use toast notification
         Else {
             $toastAppID = $appDeployToolkitName
-            $toastAppDisplayName = $Script:StateMgmt.Config.Toast_Options.Toast_AppName
+            $toastAppDisplayName = (Get-ADTSession).GetConfig().Toast_Options.Toast_AppName
 
             [scriptblock]$toastScriptBlock  = {
                 Param(
@@ -1987,7 +1987,7 @@ function Show-InstallationProgress
     Param (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$StatusMessage = $Script:UI.Progress_MessageInstall,
+        [String]$StatusMessage = (Get-ADTSession).GetUiMessages().Progress_MessageInstall,
         [Parameter(Mandatory = $false)]
         [ValidateSet('Default', 'TopLeft', 'Top', 'TopRight', 'TopCenter', 'BottomLeft', 'Bottom', 'BottomRight')]
         [String]$WindowLocation = 'Default',
@@ -2014,12 +2014,12 @@ function Show-InstallationProgress
         }
 
         ## If the default progress message hasn't been overridden and the deployment type is uninstall, use the default uninstallation message
-        If ($StatusMessage -eq $Script:UI.Progress_MessageInstall) {
-            If ($deploymentType -eq 'Uninstall') {
-                $StatusMessage = $Script:UI.Progress_MessageUninstall
+        If ($StatusMessage -eq (Get-ADTSession).GetUiMessages().Progress_MessageInstall) {
+            If ((Get-ADTSession).GetPropertyValue('DeploymentType') -eq 'Uninstall') {
+                $StatusMessage = (Get-ADTSession).GetUiMessages().Progress_MessageUninstall
             }
-            ElseIf ($deploymentType -eq 'Repair') {
-                $StatusMessage = $Script:UI.Progress_MessageRepair
+            ElseIf ((Get-ADTSession).GetPropertyValue('DeploymentType') -eq 'Repair') {
+                $StatusMessage = (Get-ADTSession).GetUiMessages().Progress_MessageRepair
             }
         }
 
@@ -2031,7 +2031,7 @@ function Show-InstallationProgress
         ## Check if the progress thread is running before invoking methods on it
         If (!$script:instProgressRunning) {
             #  Notify user that the software installation has started
-            $balloonText = "$deploymentTypeName $($Script:UI.BalloonText_Start)"
+            $balloonText = "$deploymentTypeName $((Get-ADTSession).GetUiMessages().BalloonText_Start)"
             Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText
             #  Create a synchronized hashtable to share objects between runspaces
             $script:ProgressSyncHash = [Hashtable]::Synchronized(@{ })

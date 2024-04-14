@@ -49,6 +49,7 @@ function Remove-InvalidFileNameChars
     }
     Process {
         Try {
+            $invalidFileNameChars = [System.IO.Path]::GetInvalidFileNameChars()
             Write-Output -InputObject (([Char[]]$Name | Where-Object { $invalidFileNameChars -notcontains $_ }) -join '')
         }
         Catch {
@@ -197,7 +198,7 @@ function Get-FreeDiskSpace
     Param (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [String]$Drive = $envSystemDrive,
+        [String]$Drive = $env:SystemDrive,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
         [Boolean]$ContinueOnError = $true
@@ -524,7 +525,6 @@ function Update-Desktop
         Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
     }
 }
-Set-Alias -Name 'Refresh-Desktop' -Value 'Update-Desktop' -Scope 'Script' -Force -ErrorAction 'SilentlyContinue'
 
 
 #---------------------------------------------------------------------------
@@ -622,7 +622,6 @@ function Update-SessionEnvironmentVariables
         Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
     }
 }
-Set-Alias -Name 'Refresh-SessionEnvironmentVariables' -Value 'Update-SessionEnvironmentVariables' -Scope 'Script' -Force -ErrorAction 'SilentlyContinue'
 
 
 #---------------------------------------------------------------------------
@@ -731,10 +730,6 @@ function Get-SchedulerTask
         Write-Output -InputObject ($ScheduledTasks)
         Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
     }
-}
-# If Get-ScheduledTask doesn't exist, add alias Get-ScheduledTask
-If (-not (Get-Command -Name 'Get-ScheduledTask' -ErrorAction 'SilentlyContinue')) {
-    New-Alias -Name 'Get-ScheduledTask' -Value 'Get-SchedulerTask'
 }
 
 
@@ -2896,4 +2891,23 @@ function Configure-EdgeExtension
         Write-Log -Message "Failed to configure extension with ID $extensionID. `r`n$(Resolve-Error)" -Severity 3
         Exit-Script -ExitCode 60001
     }
+}
+
+
+#---------------------------------------------------------------------------
+#
+# 
+#
+#---------------------------------------------------------------------------
+
+function Get-SidTypeAccountName
+{
+    param (
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [Security.Principal.WellKnownSidType]$WellKnownSidType
+    )
+
+    # Translate the SidType into its user-readable name.
+    return [System.Security.Principal.SecurityIdentifier]::new($WellKnownSidType, $null).Translate([System.Security.Principal.NTAccount]).Value
 }

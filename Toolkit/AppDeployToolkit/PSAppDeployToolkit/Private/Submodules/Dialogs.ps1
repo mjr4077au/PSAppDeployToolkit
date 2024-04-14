@@ -117,7 +117,7 @@ function Show-WelcomePrompt
         [DateTime]$countdownTime = $startTime
 
         ## Check if the countdown was specified
-        If ($CloseAppsCountdown -and ($CloseAppsCountdown -gt $Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout)) {
+        If ($CloseAppsCountdown -and ($CloseAppsCountdown -gt (Get-ADTSession).GetConfig().UI_Options.InstallationUI_Timeout)) {
             Throw 'The close applications countdown time cannot be longer than the timeout specified in the XML configuration for installation UI dialogs to timeout.'
         }
 
@@ -261,7 +261,7 @@ function Show-WelcomePrompt
             }
         }
         Else {
-            $script:welcomeTimer.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationUI_Timeout * 1000)
+            $script:welcomeTimer.Interval = ((Get-ADTSession).GetConfig().UI_Options.InstallationUI_Timeout * 1000)
             [ScriptBlock]$welcomeTimer_Tick = { $buttonAbort.PerformClick() }
         }
 
@@ -270,7 +270,7 @@ function Show-WelcomePrompt
         ## Persistence Timer
         If ($persistWindow) {
             $welcomeTimerPersist = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $welcomeTimerPersist.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationPrompt_PersistInterval * 1000)
+            $welcomeTimerPersist.Interval = ((Get-ADTSession).GetConfig().UI_Options.InstallationPrompt_PersistInterval * 1000)
             [ScriptBlock]$welcomeTimerPersist_Tick = {
                 $formWelcome.WindowState = 'Normal'
                 $formWelcome.TopMost = $TopMost
@@ -282,9 +282,9 @@ function Show-WelcomePrompt
         }
 
         ## Process Re-Enumeration Timer
-        If ($Script:StateMgmt.Config.UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluation) {
+        If ((Get-ADTSession).GetConfig().UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluation) {
             $timerRunningProcesses = New-Object -TypeName 'System.Windows.Forms.Timer'
-            $timerRunningProcesses.Interval = ($Script:StateMgmt.Config.UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluationInterval * 1000)
+            $timerRunningProcesses.Interval = ((Get-ADTSession).GetConfig().UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluationInterval * 1000)
             [ScriptBlock]$timerRunningProcesses_Tick = {
                 Try {
                     $dynamicRunningProcesses = $null
@@ -335,17 +335,18 @@ function Show-WelcomePrompt
 
         ## Picture Banner
         $pictureBanner.DataBindings.DefaultDataSourceUpdateMode = 0
-        $pictureBanner.ImageLocation = $appDeployLogoBanner
+        $pictureBanner.ImageLocation = (Get-ADTSession).GetConfig().BannerIcon_Options.Banner_Filename
         $System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point' -ArgumentList (0, 0)
         $pictureBanner.Location = $System_Drawing_Point
         $pictureBanner.Name = 'pictureBanner'
-        $System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList (450, $appDeployLogoBannerHeight)
+        $System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList (450, (Get-ADTSession).Session.BannerHeight)
         $pictureBanner.ClientSize = $System_Drawing_Size
         $pictureBanner.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
         $pictureBanner.Margin = $paddingNone
         $pictureBanner.TabStop = $false
 
         ## Label Welcome Message
+        $defaultFont = (Get-ADTSession).Session.DefaultFont
         $labelWelcomeMessage.DataBindings.DefaultDataSourceUpdateMode = 0
         $labelWelcomeMessage.Font = $defaultFont
         $labelWelcomeMessage.Name = 'labelWelcomeMessage'
@@ -355,7 +356,7 @@ function Show-WelcomePrompt
         $labelWelcomeMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 10, 0, 0)
         $labelWelcomeMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelWelcomeMessage.TabStop = $false
-        $labelWelcomeMessage.Text = $Script:UI.DeferPrompt_WelcomeMessage
+        $labelWelcomeMessage.Text = (Get-ADTSession).GetUiMessages().DeferPrompt_WelcomeMessage
         $labelWelcomeMessage.TextAlign = 'MiddleCenter'
         $labelWelcomeMessage.Anchor = 'Top'
         $labelWelcomeMessage.AutoSize = $true
@@ -370,7 +371,7 @@ function Show-WelcomePrompt
         $labelAppName.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 5, 0, 5)
         $labelAppName.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelAppName.TabStop = $false
-        $labelAppName.Text = $installTitle
+        $labelAppName.Text = (Get-ADTSession).GetPropertyValue('InstallTitle')
         $labelAppName.TextAlign = 'MiddleCenter'
         $labelAppName.Anchor = 'Top'
         $labelAppName.AutoSize = $true
@@ -385,7 +386,7 @@ function Show-WelcomePrompt
         $labelCustomMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 0, 0, 5)
         $labelCustomMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelCustomMessage.TabStop = $false
-        $labelCustomMessage.Text = $Script:UI.ClosePrompt_Message
+        $labelCustomMessage.Text = (Get-ADTSession).GetUiMessages().ClosePrompt_Message
         $labelCustomMessage.TextAlign = 'MiddleCenter'
         $labelCustomMessage.Anchor = 'Top'
         $labelCustomMessage.AutoSize = $true
@@ -400,7 +401,7 @@ function Show-WelcomePrompt
         $labelCloseAppsMessage.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 0, 0, 5)
         $labelCloseAppsMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelCloseAppsMessage.TabStop = $false
-        $labelCloseAppsMessage.Text = $Script:UI.ClosePrompt_Message
+        $labelCloseAppsMessage.Text = (Get-ADTSession).GetUiMessages().ClosePrompt_Message
         $labelCloseAppsMessage.TextAlign = 'MiddleCenter'
         $labelCloseAppsMessage.Anchor = 'Top'
         $labelCloseAppsMessage.AutoSize = $true
@@ -428,15 +429,15 @@ function Show-WelcomePrompt
         $labelDefer.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (0, 0, 0, 5)
         $labelDefer.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelDefer.TabStop = $false
-        $deferralText = "$($Script:UI.DeferPrompt_ExpiryMessage)`n"
+        $deferralText = "$((Get-ADTSession).GetUiMessages().DeferPrompt_ExpiryMessage)`n"
 
         If ($deferTimes -ge 0) {
-            $deferralText = "$deferralText`n$($Script:UI.DeferPrompt_RemainingDeferrals) $([Int32]$deferTimes + 1)"
+            $deferralText = "$deferralText`n$((Get-ADTSession).GetUiMessages().DeferPrompt_RemainingDeferrals) $([Int32]$deferTimes + 1)"
         }
         If ($deferDeadline) {
-            $deferralText = "$deferralText`n$($Script:UI.DeferPrompt_Deadline) $deferDeadline"
+            $deferralText = "$deferralText`n$((Get-ADTSession).GetUiMessages().DeferPrompt_Deadline) $deferDeadline"
         }
-        $deferralText = "$deferralText`n`n$($Script:UI.DeferPrompt_WarningMessage)"
+        $deferralText = "$deferralText`n`n$((Get-ADTSession).GetUiMessages().DeferPrompt_WarningMessage)"
         $labelDefer.Text = $deferralText
         $labelDefer.TextAlign = 'MiddleCenter'
         $labelDefer.AutoSize = $true
@@ -452,20 +453,20 @@ function Show-WelcomePrompt
         $labelCountdownMessage.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList (10, 0, 10, 0)
         $labelCountdownMessage.TabStop = $false
         If (($forceCountdown -eq $true) -or (-not $runningProcessDescriptions)) {
-            Switch ($deploymentType) {
+            Switch ((Get-ADTSession).GetPropertyValue('DeploymentType')) {
                 'Uninstall' {
-                    $labelCountdownMessage.Text = ($Script:UI.WelcomePrompt_CountdownMessage -f $Script:UI.DeploymentType_UnInstall); Break
+                    $labelCountdownMessage.Text = ((Get-ADTSession).GetUiMessages().WelcomePrompt_CountdownMessage -f (Get-ADTSession).GetUiMessages().DeploymentType_UnInstall); Break
                 }
                 'Repair' {
-                    $labelCountdownMessage.Text = ($Script:UI.WelcomePrompt_CountdownMessage -f $Script:UI.DeploymentType_Repair); Break
+                    $labelCountdownMessage.Text = ((Get-ADTSession).GetUiMessages().WelcomePrompt_CountdownMessage -f (Get-ADTSession).GetUiMessages().DeploymentType_Repair); Break
                 }
                 Default {
-                    $labelCountdownMessage.Text = ($Script:UI.WelcomePrompt_CountdownMessage -f $Script:UI.DeploymentType_Install); Break
+                    $labelCountdownMessage.Text = ((Get-ADTSession).GetUiMessages().WelcomePrompt_CountdownMessage -f (Get-ADTSession).GetUiMessages().DeploymentType_Install); Break
                 }
             }
         }
         Else {
-            $labelCountdownMessage.Text = $Script:UI.ClosePrompt_CountdownMessage
+            $labelCountdownMessage.Text = (Get-ADTSession).GetUiMessages().ClosePrompt_CountdownMessage
         }
         $labelCountdownMessage.TextAlign = 'MiddleCenter'
         $labelCountdownMessage.Anchor = 'Top'
@@ -486,7 +487,7 @@ function Show-WelcomePrompt
         $labelCountdown.AutoSize = $true
 
         ## Panel Flow Layout
-        $System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point' -ArgumentList (0, $appDeployLogoBannerHeight)
+        $System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point' -ArgumentList (0, (Get-ADTSession).Session.BannerHeight)
         $flowLayoutPanel.Location = $System_Drawing_Point
         $flowLayoutPanel.MinimumSize = $DefaultControlSize
         $flowLayoutPanel.MaximumSize = $DefaultControlSize
@@ -501,8 +502,8 @@ function Show-WelcomePrompt
         $flowLayoutPanel.Controls.Add($labelWelcomeMessage)
         $flowLayoutPanel.Controls.Add($labelAppName)
 
-        If ($CustomText -and $Script:UI.WelcomePrompt_CustomMessage) {
-            $labelCustomMessage.Text = $Script:UI.WelcomePrompt_CustomMessage
+        If ($CustomText -and (Get-ADTSession).GetUiMessages().WelcomePrompt_CustomMessage) {
+            $labelCustomMessage.Text = (Get-ADTSession).GetUiMessages().WelcomePrompt_CustomMessage
             $flowLayoutPanel.Controls.Add($labelCustomMessage)
         }
         If ($showCloseApps) {
@@ -526,7 +527,7 @@ function Show-WelcomePrompt
         $buttonCloseApps.MinimumSize = $buttonSize
         $buttonCloseApps.MaximumSize = $buttonSize
         $buttonCloseApps.TabIndex = 1
-        $buttonCloseApps.Text = $Script:UI.ClosePrompt_ButtonClose
+        $buttonCloseApps.Text = (Get-ADTSession).GetUiMessages().ClosePrompt_ButtonClose
         $buttonCloseApps.DialogResult = 'Yes'
         $buttonCloseApps.AutoSize = $true
         $buttonCloseApps.Margin = $paddingNone
@@ -547,7 +548,7 @@ function Show-WelcomePrompt
         $buttonDefer.MinimumSize = $buttonSize
         $buttonDefer.MaximumSize = $buttonSize
         $buttonDefer.TabIndex = 0
-        $buttonDefer.Text = $Script:UI.ClosePrompt_ButtonDefer
+        $buttonDefer.Text = (Get-ADTSession).GetUiMessages().ClosePrompt_ButtonDefer
         $buttonDefer.DialogResult = 'No'
         $buttonDefer.AutoSize = $true
         $buttonDefer.Margin = $paddingNone
@@ -563,7 +564,7 @@ function Show-WelcomePrompt
         $buttonContinue.MinimumSize = $buttonSize
         $buttonContinue.MaximumSize = $buttonSize
         $buttonContinue.TabIndex = 2
-        $buttonContinue.Text = $Script:UI.ClosePrompt_ButtonContinue
+        $buttonContinue.Text = (Get-ADTSession).GetUiMessages().ClosePrompt_ButtonContinue
         $buttonContinue.DialogResult = 'OK'
         $buttonContinue.AutoSize = $true
         $buttonContinue.Margin = $paddingNone
@@ -575,7 +576,7 @@ function Show-WelcomePrompt
             $toolTip.IsBalloon = $false
             $toolTip.InitialDelay = 100
             $toolTip.ReshowDelay = 100
-            $toolTip.SetToolTip($buttonContinue, $Script:UI.ClosePrompt_ButtonContinueTooltip)
+            $toolTip.SetToolTip($buttonContinue, (Get-ADTSession).GetUiMessages().ClosePrompt_ButtonContinueTooltip)
         }
 
         ## Button Abort (Hidden)
@@ -604,14 +605,14 @@ function Show-WelcomePrompt
         $formWelcome.Margin = $paddingNone
         $formWelcome.DataBindings.DefaultDataSourceUpdateMode = 0
         $formWelcome.Name = 'WelcomeForm'
-        $formWelcome.Text = $installTitle
+        $formWelcome.Text = (Get-ADTSession).GetPropertyValue('InstallTitle')
         $formWelcome.StartPosition = 'CenterScreen'
         $formWelcome.FormBorderStyle = 'Fixed3D'
         $formWelcome.MaximizeBox = $false
         $formWelcome.MinimizeBox = $false
         $formWelcome.TopMost = $TopMost
         $formWelcome.TopLevel = $true
-        $formWelcome.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($AppDeployLogoIcon)
+        $formWelcome.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList (Get-ADTSession).GetConfig().BannerIcon_Options.Icon_Filename
         $formWelcome.AutoSize = $true
         $formWelcome.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
         $formWelcome.AutoScaleDimensions = New-Object System.Drawing.SizeF(96,96)
@@ -643,7 +644,7 @@ function Show-WelcomePrompt
 
         ## Minimize all other windows
         If ($minimizeWindows) {
-            $null = $shellApp.MinimizeAll()
+            $null = (Get-ADTSession).Session.ShellApp.MinimizeAll()
         }
 
         ## Show the form
@@ -666,7 +667,7 @@ function Show-WelcomePrompt
             }
         }
 
-        If ($Script:StateMgmt.Config.UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluation) {
+        If ((Get-ADTSession).GetConfig().UI_Options.InstallationWelcomePrompt_DynamicRunningProcessEvaluation) {
             $timerRunningProcesses.Stop()
         }
 

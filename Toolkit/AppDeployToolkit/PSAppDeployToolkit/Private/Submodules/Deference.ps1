@@ -42,7 +42,7 @@ function Get-DeferHistory
     }
     Process {
         Write-Log -Message 'Getting deferral history...' -Source ${CmdletName}
-        Get-RegistryKey -Key $regKeyDeferHistory -ContinueOnError $true
+        Get-RegistryKey -Key (Get-ADTSession).Session.RegKeyDeferHistory -ContinueOnError $true
     }
     End {
         Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
@@ -99,11 +99,11 @@ function Set-DeferHistory
     Process {
         If ($deferTimesRemaining -and ($deferTimesRemaining -ge 0)) {
             Write-Log -Message "Setting deferral history: [DeferTimesRemaining = $deferTimesRemaining]." -Source ${CmdletName}
-            Set-RegistryKey -Key $regKeyDeferHistory -Name 'DeferTimesRemaining' -Value $deferTimesRemaining -ContinueOnError $true
+            Set-RegistryKey -Key (Get-ADTSession).Session.RegKeyDeferHistory -Name 'DeferTimesRemaining' -Value $deferTimesRemaining -ContinueOnError $true
         }
         If ($deferDeadline) {
             Write-Log -Message "Setting deferral history: [DeferDeadline = $deferDeadline]." -Source ${CmdletName}
-            Set-RegistryKey -Key $regKeyDeferHistory -Name 'DeferDeadline' -Value $deferDeadline -ContinueOnError $true
+            Set-RegistryKey -Key (Get-ADTSession).Session.RegKeyDeferHistory -Name 'DeferDeadline' -Value $deferDeadline -ContinueOnError $true
         }
     }
     End {

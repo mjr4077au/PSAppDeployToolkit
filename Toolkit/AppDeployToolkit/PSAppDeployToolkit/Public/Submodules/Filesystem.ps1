@@ -275,7 +275,7 @@ function Copy-File
         [Boolean]$ContinueFileCopyOnError = $false,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [Boolean]$UseRobocopy = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_UseRobocopy,
+        [Boolean]$UseRobocopy = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_UseRobocopy,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [String]$RobocopyAdditionalParams = $null
@@ -701,7 +701,7 @@ function Copy-FileToUserProfiles
         [Boolean]$ContinueFileCopyOnError = $false,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [Boolean]$UseRobocopy = $Script:StateMgmt.Config.Toolkit_Options.Toolkit_UseRobocopy,
+        [Boolean]$UseRobocopy = (Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_UseRobocopy,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [String]$RobocopyAdditionalParams = $null

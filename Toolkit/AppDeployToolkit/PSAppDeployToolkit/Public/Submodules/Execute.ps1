@@ -95,11 +95,11 @@ function Execute-Process
 
     .EXAMPLE
     # Launch InstallShield "setup.exe" from the ".\Files" sub-directory and force log files to the logging folder.
-    Execute-Process -Path 'setup.exe' -Parameters "-s -f2`"$Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath\$installName.log`""
+    Execute-Process -Path 'setup.exe' -Parameters "-s -f2`"(Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogPath\$installName.log`""
 
     .EXAMPLE
     # Launch InstallShield "setup.exe" with embedded MSI and force log files to the logging folder.
-    Execute-Process -Path 'setup.exe' -Parameters "/s /v`"ALLUSERS=1 /qn /L* \`"$Script:StateMgmt.Config.Toolkit_Options.Toolkit_LogPath\$installName.log`"`""
+    Execute-Process -Path 'setup.exe' -Parameters "/s /v`"ALLUSERS=1 /qn /L* \`"(Get-ADTSession).GetConfig().Toolkit_Options.Toolkit_LogPath\$installName.log`"`""
 
     .EXAMPLE
     Use SCCM to create a single Package and Deployment Type that can run "whether or not a user is logged on" and also displays interaction for logged-on users including RDP session users.
@@ -149,7 +149,7 @@ function Execute-Process
         [Switch]$WaitForMsiExec = $false,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
-        [Int32]$MsiExecWaitTime = $Script:StateMgmt.Config.MSI_Options.MSI_MutexWaitTime,
+        [Int32]$MsiExecWaitTime = (Get-ADTSession).GetConfig().MSI_Options.MSI_MutexWaitTime,
         [Parameter(Mandatory = $false)]
         [ValidateNotNullorEmpty()]
         [String]$IgnoreExitCodes,

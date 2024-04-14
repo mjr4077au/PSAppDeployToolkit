@@ -67,21 +67,21 @@ Import-Module -Name "$PSScriptRoot\PSAppDeployToolkit" -DisableNameChecking
 # Open a new PSADT session.
 $sessionParams = @{
     Cmdlet = $PSCmdlet
-    AppVendor = $AppVendor
-    AppName = $AppName
-    AppVersion = $AppVersion
-    AppArch = $AppArch
-    AppLang = $AppLang
-    AppRevision = $AppRevision
-    AppScriptVersion = $AppScriptVersion
-    AppScriptDate = $AppScriptDate
-    AppScriptAuthor = $AppScriptAuthor
-    InstallName = $InstallName
-    InstallTitle = $InstallTitle
-    DeployAppScriptFriendlyName = $DeployAppScriptFriendlyName
-    DeployAppScriptVersion = $DeployAppScriptVersion
-    DeployAppScriptDate = $DeployAppScriptDate
-    DeployAppScriptParameters = $DeployAppScriptParameters
+    AppVendor = $(if (Test-Path -LiteralPath 'Variable:AppVendor') {$AppVendor})
+    AppName = $(if (Test-Path -LiteralPath 'Variable:AppName') {$AppName})
+    AppVersion = $(if (Test-Path -LiteralPath 'Variable:AppVersion') {$AppVersion})
+    AppArch = $(if (Test-Path -LiteralPath 'Variable:AppArch') {$AppArch})
+    AppLang = $(if (Test-Path -LiteralPath 'Variable:AppLang') {$AppLang})
+    AppRevision = $(if (Test-Path -LiteralPath 'Variable:AppRevision') {$AppRevision})
+    AppScriptVersion = $(if (Test-Path -LiteralPath 'Variable:AppScriptVersion') {$AppScriptVersion})
+    AppScriptDate = $(if (Test-Path -LiteralPath 'Variable:AppScriptDate') {$AppScriptDate})
+    AppScriptAuthor = $(if (Test-Path -LiteralPath 'Variable:AppScriptAuthor') {$AppScriptAuthor})
+    InstallName = $(if (Test-Path -LiteralPath 'Variable:InstallName') {$InstallName})
+    InstallTitle = $(if (Test-Path -LiteralPath 'Variable:InstallTitle') {$InstallTitle})
+    DeployAppScriptFriendlyName = $(if (Test-Path -LiteralPath 'Variable:DeployAppScriptFriendlyName') {$DeployAppScriptFriendlyName})
+    DeployAppScriptVersion = $(if (Test-Path -LiteralPath 'Variable:DeployAppScriptVersion') {$DeployAppScriptVersion})
+    DeployAppScriptDate = $(if (Test-Path -LiteralPath 'Variable:DeployAppScriptDate') {$DeployAppScriptDate})
+    DeployAppScriptParameters = $(if (Test-Path -LiteralPath 'Variable:DeployAppScriptParameters') {$DeployAppScriptParameters})
 }
 New-ADTSession @PSBoundParameters @sessionParams
 

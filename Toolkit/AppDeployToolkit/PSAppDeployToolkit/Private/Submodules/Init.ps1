@@ -495,19 +495,29 @@ filter Convert-ADTConfigToObjects
             # String was empty, just return.
             return
         }
+        elseif (($str -match '(\d+\.){2,}') -and [System.Version]::TryParse($str, [ref]$val))
+        {
+            # String is a version, return the parsed result.
+            return $val
+        }
+        elseif ([System.Double]::TryParse($str, [ref]$val))
+        {
+            # String is a double, return the parsed result.
+            return $val
+        }
         elseif ([System.UInt32]::TryParse($str, [ref]$val))
         {
-            # String is an unsigned int, convert it.
+            # String is an unsigned int, return the parsed result.
             return $val
         }
         elseif ([System.Int32]::TryParse($str, [ref]$val))
         {
-            # String is an signed int, convert it.
+            # String is an signed int, return the parsed result.
             return $val
         }
         elseif ([System.Boolean]::TryParse($str, [ref]$val))
         {
-            # String is a bool, convert it.
+            # String is a bool, return the parsed result.
             return $val
         }
         else

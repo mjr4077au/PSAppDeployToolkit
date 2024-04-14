@@ -199,6 +199,20 @@ class ADTSession
         $this.Session.UiMessages = $this.Session.Config."UI_Messages_$($this.Session.State.MessageLanguage)"
     }
 
+    hidden [System.String] GetLogSource()
+    {
+        # Look at how to do this better. Code that should work like [System.Reflection.MethodBase]::GetCurrentMethod() or
+        # [System.Diagnostics.StackFrame]::new(0).GetMethod() fails because classes in PowerShell behave differently to C#.
+        try
+        {
+            throw "Retrieving method name from the stack trace."
+        }
+        catch
+        {
+            return "$((Get-PSCallStack).Command.Where({![System.String]::IsNullOrWhiteSpace($_)})[0]): [$($this.GetType().Name)]::$($_.ScriptStackTrace.Split("`n")[1] -replace '^at (\w+),.+$','$1')()"
+        }
+    }
+
     hidden [System.Void] DetectDefaultMsi()
     {
         # If the default Deploy-Application.ps1 hasn't been modified, and the main script was not called by a referring script, check for MSI / MST and modify the install accordingly.
@@ -208,7 +222,7 @@ class ADTSession
         }
 
         # Find the first MSI file in the Files folder and use that as our install.
-        $logSrc = "[ADTSession]::DetectDefaultMsi()"
+        $logSrc = $this.GetLogSource()
         if (!$this.Properties.DefaultMsiFile)
         {
             # Get all MSI files.
@@ -377,21 +391,20 @@ class ADTSession
     hidden [System.Void] WriteLogDivider()
     {
         # Write divider as requested.
-        Write-Log -Message ('*' * 79) -Source "[ADTSession]::WriteLogDivider()"
+        Write-Log -Message ('*' * 79) -Source $this.GetLogSource()
     }
 
     hidden [System.Void] OpenLogFile()
     {
         # Initialize logging.
-        $logSrc = "[ADTSession]::OpenLogFile()"
         $this.WriteLogDivider()
         $this.WriteLogDivider()
-        Write-Log -Message "[$($this.Properties.InstallName)] setup started." -Source $logSrc
+        Write-Log -Message "[$($this.Properties.InstallName)] setup started." -Source $this.GetLogSource()
     }
 
     hidden [System.Void] LogScriptInfo()
     {
-        $logSrc = "[ADTSession]::LogScriptInfo()"
+        $logSrc = $this.GetLogSource()
         if ($this.Properties.AppScriptVersion)
         {
             Write-Log -Message "[$($this.Properties.InstallName)] script version is [$($this.Properties.AppScriptVersion)]" -Source $logSrc
@@ -417,8 +430,7 @@ class ADTSession
 
     hidden [System.Void] LogSystemInfo()
     {
-        $logSrc = "[ADTSession]::LogSystemInfo()"
-        Write-Log -Message "Computer Name is [$($this.Session.Environment.envComputerNameFQDN)]" -Source $logSrc
+        Write-Log -Message "Computer Name is [$($this.Session.Environment.envComputerNameFQDN)]" -Source ($logSrc = $this.GetLogSource())
         Write-Log -Message "Current User is [$($this.Session.Environment.ProcessNTAccount)]" -Source $logSrc
         if ($this.Session.Environment.envOSServicePack)
         {
@@ -441,27 +453,25 @@ class ADTSession
 
     hidden [System.Void] InstallToastDependencies()
     {
-        $logSrc = "[ADTSession]::InstallToastDependencies()"
         # Install required assemblies for toast notifications if conditions are right.
         if (!$this.Session.Config.Toast_Options.Toast_Disable -and $Script:PSVersionTable.PSEdition.Equals('Core') -and !(Get-Package -Name Microsoft.Windows.SDK.NET.Ref -ErrorAction Ignore))
         {
             try
             {
-                Write-Log -Message "Installing WinRT assemblies for PowerShell 7 toast notification support. This will take at least 5 minutes, please wait..." -Source $logSrc
+                Write-Log -Message "Installing WinRT assemblies for PowerShell 7 toast notification support. This will take at least 5 minutes, please wait..." -Source $this.GetLogSource()
                 Install-Package -Name Microsoft.Windows.SDK.NET.Ref -ProviderName NuGet -Force -Confirm:$false | Out-Null
             }
             catch
             {
-                Write-Log -Message "An error occurred while preparing WinRT assemblies for usage. Toast notifications will not be available for this execution." -Severity 2 -Source $logSrc
+                Write-Log -Message "An error occurred while preparing WinRT assemblies for usage. Toast notifications will not be available for this execution." -Severity 2 -Source $this.GetLogSource()
             }
         }
     }
 
     hidden [System.Void] LogUserInfo()
     {
-        $logSrc = "[ADTSession]::LogUserInfo()"
-        # Log details for all currently logged in users
-        Write-Log -Message "Display session information for all logged on users:`n$($this.Session.Environment.LoggedOnUserSessions | Format-List | Out-String)" -Source $logSrc
+        # Log details for all currently logged in users.
+        Write-Log -Message "Display session information for all logged on users:`n$($this.Session.Environment.LoggedOnUserSessions | Format-List | Out-String)" -Source ($logSrc = $this.GetLogSource())
         if ($this.Session.Environment.usersLoggedOn)
         {
             Write-Log -Message "The following users are logged on to the system: [$($this.Session.Environment.usersLoggedOn -join ', ')]." -Source $logSrc
@@ -534,26 +544,25 @@ class ADTSession
 
     hidden [System.Void] PerformSCCMTests()
     {
-        $logSrc = "[ADTSession]::PerformSCCMTests()"
-        # Check if script is running from a SCCM Task Sequence
+        # Check if script is running from a SCCM Task Sequence.
         try
         {
             [__ComObject]$SMSTSEnvironment = New-Object -ComObject Microsoft.SMS.TSEnvironment
-            Write-Log -Message 'Successfully loaded COM Object [Microsoft.SMS.TSEnvironment]. Therefore, script is currently running from a SCCM Task Sequence.' -Source $logSrc
+            Write-Log -Message 'Successfully loaded COM Object [Microsoft.SMS.TSEnvironment]. Therefore, script is currently running from a SCCM Task Sequence.' -Source $this.GetLogSource()
             [System.Void][Runtime.Interopservices.Marshal]::ReleaseComObject($SMSTSEnvironment)
             $this.Properties.RunningTaskSequence = $true
         }
         catch
         {
-            Write-Log -Message 'Unable to load COM Object [Microsoft.SMS.TSEnvironment]. Therefore, script is not currently running from a SCCM Task Sequence.' -Source $logSrc
+            Write-Log -Message 'Unable to load COM Object [Microsoft.SMS.TSEnvironment]. Therefore, script is not currently running from a SCCM Task Sequence.' -Source $this.GetLogSource()
         }
     }
 
     hidden [System.Void] PerformSystemAccountTests()
     {
-        $logSrc = "[ADTSession]::PerformSystemAccountTests()"
         # Check to see if the Task Scheduler service is in a healthy state by checking its services to see if they exist, are currently running, and have a start mode of 'Automatic'.
         # The task scheduler service and the services it is dependent on can/should only be started/stopped/modified when running in the SYSTEM context.
+        $logSrc = $this.GetLogSource()
         if ($this.Session.Environment.IsLocalSystemAccount)
         {
             # Check the health of the 'Task Scheduler' service
@@ -624,9 +633,8 @@ class ADTSession
 
     hidden [System.Void] SetDeploymentProperties()
     {
-        $logSrc = "[ADTSession]::SetDeploymentProperties()"
         # Set Deploy Mode switches.
-        Write-Log -Message "Installation is running in [$($this.Properties.DeployMode)] mode." -Source $logSrc
+        Write-Log -Message "Installation is running in [$($this.Properties.DeployMode)] mode." -Source ($logSrc = $this.GetLogSource())
         switch ($this.Properties.DeployMode)
         {
             'Silent' {
@@ -658,22 +666,20 @@ class ADTSession
 
     hidden [System.Void] TestDefaultMsi()
     {
-        $logSrc = "[ADTSession]::SetDeploymentProperties()"
         # Advise the caller if a zero-config MSI was found.
         if ($this.Properties.UseDefaultMsi)
         {
-            Write-Log -Message "Discovered Zero-Config MSI installation file [$($this.Properties.DefaultMsiFile)]." -Source $logSrc
+            Write-Log -Message "Discovered Zero-Config MSI installation file [$($this.Properties.DefaultMsiFile)]." -Source $this.GetLogSource()
         }
     }
 
     hidden [System.Void] TestAdminRequired()
     {
-        $logSrc = "[ADTSession]::TestAdminRequired()"
         # Check current permissions and exit if not running with Administrator rights
         if ($this.Session.Config.Toolkit_Options.Toolkit_RequireAdmin -and !$this.Session.Environment.IsAdmin)# -and !$ShowBlockedAppDialog)
         {
             $adminErr = "[$($this.Session.Environment.appDeployToolkitName)] has an XML config file option [Toolkit_RequireAdmin] set to [True] so as to require Administrator rights for the toolkit to function. Please re-run the deployment script as an Administrator or change the option in the XML config file to not require Administrator rights."
-            Write-Log -Message $adminErr -Severity 3 -Source $logSrc
+            Write-Log -Message $adminErr -Severity 3 -Source $this.GetLogSource()
             Show-DialogBox -Text $adminErr -Icon Stop
             throw $adminErr
         }

@@ -471,7 +471,7 @@ class ADTSession
     hidden [System.Void] LogUserInfo()
     {
         # Log details for all currently logged in users.
-        Write-Log -Message "Display session information for all logged on users:`n$($this.Session.Environment.LoggedOnUserSessions | Format-List | Out-String)" -Source ($logSrc = $this.GetLogSource())
+        Write-Log -Message "Display session information for all logged on users:`n$($this.Session.Environment.LoggedOnUserSessions | Format-List | Out-String)" -Source ($logSrc = $this.GetLogSource()) -DebugMessage
         if ($this.Session.Environment.usersLoggedOn)
         {
             Write-Log -Message "The following users are logged on to the system: [$($this.Session.Environment.usersLoggedOn -join ', ')]." -Source $logSrc

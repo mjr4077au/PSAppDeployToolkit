@@ -92,6 +92,9 @@ function New-ADTVariableDatabase
     $variables.Add('envSystem32Directory', [string][System.Environment]::SystemDirectory)
     $variables.Add('envWinDir', [string]$env:WINDIR)
 
+    # Variables: Running in SCCM Task Sequence.
+    $variables.Add('RunningTaskSequence', !![System.Type]::GetTypeFromProgID('Microsoft.SMS.TSEnvironment'))
+
     # Variables: Domain Membership
     $w32cs = Get-CimInstance -ClassName Win32_ComputerSystem
     [string]$w32csd = $w32cs.Domain | Where-Object {$_}

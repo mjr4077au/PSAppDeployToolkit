@@ -200,16 +200,8 @@ class ADTSession
 
     hidden [System.String] GetLogSource()
     {
-        # Look at how to do this better. Code that should work like [System.Reflection.MethodBase]::GetCurrentMethod() or
-        # [System.Diagnostics.StackFrame]::new(0).GetMethod() fails because classes in PowerShell behave differently to C#.
-        try
-        {
-            throw "Retrieving method name from the stack trace."
-        }
-        catch
-        {
-            return "$((Get-PSCallStack).Command.Where({![System.String]::IsNullOrWhiteSpace($_)})[0]): [$($this.GetType().Name)]::$($_.ScriptStackTrace.Split("`n")[1] -replace '^at (\w+),.+$','$1')()"
-        }
+        # Get the first command in the callstack and consider it the log source.
+        return (Get-PSCallStack).Command.Where({![System.String]::IsNullOrWhiteSpace($_)})[0]
     }
 
     hidden [System.Void] DetectDefaultMsi()
